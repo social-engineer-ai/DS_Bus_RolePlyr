@@ -22,33 +22,13 @@ from app.schemas.assignment import (
     StudentAssignment,
     AssignmentSubmission,
 )
-from app.routers.auth import MOCK_USERS
+from app.routers.auth import get_current_user
 
 router = APIRouter()
 
 
-def get_current_user_id(user_key: Optional[str] = None) -> UUID:
-    """Get current user ID from mock auth."""
-    if not user_key:
-        user_key = "student1"
-    user = MOCK_USERS.get(user_key)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid user")
-    return UUID(user["id"])
-
-
-def get_user_role(user_key: Optional[str] = None) -> str:
-    """Get current user's role."""
-    if not user_key:
-        user_key = "student1"
-    user = MOCK_USERS.get(user_key)
-    return user["role"] if user else "student"
-
-
-def require_instructor(user_key: Optional[str] = None):
-    """Require instructor or admin role."""
-    role = get_user_role(user_key)
-    if role not in ["instructor", "admin"]:
+def _require_instructor(current_user: User):
+    if current_user.role.value not in ["instructor", "admin"]:
         raise HTTPException(status_code=403, detail="Instructor access required")
 
 
@@ -56,17 +36,15 @@ def require_instructor(user_key: Optional[str] = None):
 async def create_assignment(
     assignment_data: AssignmentCreate,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new assignment (instructor only)."""
-    require_instructor(user_key)
+    _require_instructor(current_user)
 
-    # Verify scenario exists
     scenario = db.query(Scenario).filter(Scenario.id == assignment_data.scenario_id).first()
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
 
-    # Create assignment
     assignment = Assignment(
         course_id=assignment_data.course_id,
         scenario_id=assignment_data.scenario_id,
@@ -81,7 +59,6 @@ async def create_assignment(
     db.commit()
     db.refresh(assignment)
 
-    # Get persona info
     persona = db.query(Persona).filter(Persona.id == scenario.persona_id).first()
 
     return AssignmentResponse(
@@ -105,10 +82,10 @@ async def list_assignments(
     course_id: Optional[UUID] = None,
     active_only: bool = False,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """List all assignments (instructor view)."""
-    require_instructor(user_key)
+    _require_instructor(current_user)
 
     query = db.query(Assignment)
     if course_id:
@@ -123,7 +100,6 @@ async def list_assignments(
         scenario = db.query(Scenario).filter(Scenario.id == assignment.scenario_id).first()
         persona = db.query(Persona).filter(Persona.id == scenario.persona_id).first() if scenario else None
 
-        # Count submissions
         submissions = db.query(Conversation).filter(
             Conversation.assignment_id == assignment.id
         ).all()
@@ -147,12 +123,11 @@ async def list_assignments(
 @router.get("/student", response_model=List[StudentAssignment])
 async def get_student_assignments(
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Get assignments available to current student."""
-    user_id = get_current_user_id(user_key)
+    user_id = current_user.id
 
-    # Get all active assignments
     assignments = db.query(Assignment).filter(Assignment.is_active == True).all()
 
     result = []
@@ -165,7 +140,6 @@ async def get_student_assignments(
         if not persona:
             continue
 
-        # Count student's attempts
         attempts = db.query(Conversation).filter(
             Conversation.assignment_id == assignment.id,
             Conversation.user_id == user_id,
@@ -179,7 +153,6 @@ async def get_student_assignments(
                 if best_score is None or score > best_score:
                     best_score = score
 
-        # Check if can attempt
         can_attempt = attempts_used < assignment.max_attempts
         if assignment.due_date and datetime.utcnow() > assignment.due_date:
             can_attempt = False
@@ -205,7 +178,7 @@ async def get_student_assignments(
 async def get_assignment(
     assignment_id: UUID,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Get assignment details."""
     assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
@@ -236,16 +209,15 @@ async def update_assignment(
     assignment_id: UUID,
     update_data: AssignmentUpdate,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Update an assignment (instructor only)."""
-    require_instructor(user_key)
+    _require_instructor(current_user)
 
     assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
-    # Update fields if provided
     update_dict = update_data.model_dump(exclude_unset=True)
     for key, value in update_dict.items():
         setattr(assignment, key, value)
@@ -276,16 +248,15 @@ async def update_assignment(
 async def delete_assignment(
     assignment_id: UUID,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Delete an assignment (instructor only). Sets inactive instead of hard delete."""
-    require_instructor(user_key)
+    _require_instructor(current_user)
 
     assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
-    # Soft delete - set inactive
     assignment.is_active = False
     db.commit()
 
@@ -296,10 +267,10 @@ async def delete_assignment(
 async def get_assignment_submissions(
     assignment_id: UUID,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Get all submissions for an assignment (instructor only)."""
-    require_instructor(user_key)
+    _require_instructor(current_user)
 
     assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
     if not assignment:

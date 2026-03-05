@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { api, AuthUser, API_BASE } from '@/lib/api'
 
 interface HealthStatus {
   status: string
@@ -12,12 +13,14 @@ export default function Home() {
   const router = useRouter()
   const [health, setHealth] = useState<HealthStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
 
   useEffect(() => {
-    fetch('http://localhost:8000/health')
+    setUser(api.getUser())
+    fetch(`${API_BASE}/health`)
       .then(res => res.json())
       .then(data => setHealth(data))
-      .catch(err => setError('Backend not available'))
+      .catch(() => setError('Backend not available'))
   }, [])
 
   return (
@@ -26,11 +29,20 @@ export default function Home() {
       <header className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-800">StakeholderSim</h1>
-          <nav className="flex gap-4">
+          <nav className="flex items-center gap-4">
             <a href="/dashboard" className="text-gray-600 hover:text-gray-800">Dashboard</a>
             <a href="/assignments" className="text-gray-600 hover:text-gray-800">Assignments</a>
             <a href="/scenarios" className="text-gray-600 hover:text-gray-800">Practice</a>
-            <a href="/instructor" className="text-indigo-600 hover:text-indigo-800">Instructor</a>
+            {user?.role === 'instructor' || user?.role === 'admin' ? (
+              <a href="/instructor" className="text-indigo-600 hover:text-indigo-800">Instructor</a>
+            ) : null}
+            <span className="text-sm text-gray-500">{user?.name}</span>
+            <button
+              onClick={() => api.logout()}
+              className="text-sm text-red-600 hover:text-red-800"
+            >
+              Logout
+            </button>
           </nav>
         </div>
       </header>
@@ -44,14 +56,6 @@ export default function Home() {
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Practice presenting your data science work to AI-powered stakeholder personas.
             Get realistic feedback without the pressure of real meetings.
-          </p>
-        </div>
-
-        {/* Development Warning */}
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 max-w-2xl mx-auto">
-          <p className="text-sm text-yellow-700">
-            <strong>Development Mode</strong> - Using mock authentication.
-            See PRE_DEPLOYMENT_CHECKLIST.md before production.
           </p>
         </div>
 
@@ -121,26 +125,6 @@ export default function Home() {
                 <span className="text-gray-500">Checking...</span>
               </div>
             )}
-
-            {/* Dev Links */}
-            <div className="mt-4 pt-4 border-t flex gap-4 text-sm">
-              <a
-                href="http://localhost:8000/docs"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
-              >
-                API Docs
-              </a>
-              <a
-                href="http://localhost:8000/api/v1/auth/mock-users"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
-              >
-                Mock Users
-              </a>
-            </div>
           </div>
         </div>
       </div>

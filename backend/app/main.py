@@ -20,7 +20,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,8 +44,7 @@ async def startup_event():
     print(f"Debug Mode: {settings.debug}")
     if settings.env == "development":
         print("")
-        print("  WARNING: Using MOCK AUTHENTICATION")
-        print("  See PRE_DEPLOYMENT_CHECKLIST.md before production")
+        print("  Auth: Email/password with JWT")
     print("=" * 50)
 
 

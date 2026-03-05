@@ -5,6 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { api, Grade, Conversation } from '@/lib/api';
 import { GradeDisplay } from '@/components/GradeDisplay';
 
+function formatDuration(seconds: number | null | undefined): string {
+  if (!seconds) return '-';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s.toString().padStart(2, '0')}s`;
+}
+
 export default function GradePage() {
   const params = useParams();
   const router = useRouter();
@@ -25,16 +32,13 @@ export default function GradePage() {
       setLoading(true);
       setError(null);
 
-      // Load conversation
       const conv = await api.getConversation(conversationId);
       setConversation(conv);
 
-      // Try to load grade
       try {
         const gradeData = await api.getGrade(conversationId);
         setGrade(gradeData);
-      } catch (e) {
-        // Grade might not exist yet
+      } catch {
         setGrade(null);
       }
     } catch (err) {
@@ -81,6 +85,10 @@ export default function GradePage() {
     );
   }
 
+  const violationCount = grade?.violation_count ?? conversation.violation_count ?? 0;
+  const violationLog = grade?.violation_log ?? conversation.violation_log ?? [];
+  const totalActiveSeconds = grade?.total_active_seconds ?? conversation.total_active_seconds;
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -126,6 +134,52 @@ export default function GradePage() {
           </div>
         )}
 
+        {/* Session metadata bar */}
+        <div className="mb-6 bg-white rounded-lg shadow-md p-4 flex items-center gap-6 flex-wrap">
+          <div>
+            <span className="text-xs text-gray-500">Duration</span>
+            <p className="font-mono text-sm">{formatDuration(totalActiveSeconds)}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500">Turns</span>
+            <p className="font-mono text-sm">{conversation.turn_count}</p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500">Violations</span>
+            <p className="font-mono text-sm flex items-center gap-1">
+              {violationCount > 0 ? (
+                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                  violationCount >= 3 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                }`}>
+                  {violationCount}
+                </span>
+              ) : (
+                <span className="text-green-600">0</span>
+              )}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500">Mode</span>
+            <p className="text-sm capitalize">{conversation.mode}</p>
+          </div>
+        </div>
+
+        {/* Violation log details */}
+        {violationLog && violationLog.length > 0 && (
+          <div className="mb-6 bg-yellow-50 rounded-lg border border-yellow-200 p-4">
+            <h3 className="text-sm font-medium text-yellow-800 mb-2">Violation Log</h3>
+            <div className="space-y-1">
+              {violationLog.map((v, i) => (
+                <div key={i} className="text-sm text-yellow-700 flex gap-4">
+                  <span>#{v.violation_number}</span>
+                  <span>Turn {v.turn_number}</span>
+                  <span>{new Date(v.timestamp).toLocaleTimeString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {conversation.status !== 'completed' ? (
           <div className="bg-yellow-50 rounded-lg p-6 text-center">
             <p className="text-yellow-800 mb-4">
@@ -141,7 +195,7 @@ export default function GradePage() {
         ) : !grade ? (
           <div className="bg-white rounded-lg p-6 shadow-md text-center">
             <p className="text-gray-600 mb-4">
-              This conversation hasn't been graded yet.
+              This conversation hasn&apos;t been graded yet.
             </p>
             <button
               onClick={handleTriggerGrading}

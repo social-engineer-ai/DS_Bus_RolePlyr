@@ -1,74 +1,33 @@
-"""Authentication endpoints - MOCK AUTH FOR DEVELOPMENT ONLY.
-
-WARNING: This is mock authentication for development purposes.
-Before production deployment, replace with real OAuth 2.0.
-See docs/PRE_DEPLOYMENT_CHECKLIST.md
-"""
+"""Authentication endpoints — real email/password auth with JWT."""
 
 from datetime import datetime, timedelta
 from typing import Optional
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from jose import jwt
-from pydantic import BaseModel
+from fastapi.security import OAuth2PasswordBearer
+from jose import jwt, JWTError
+from passlib.context import CryptContext
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.database import get_db
+from app.models.user import User, UserRole
+from app.schemas.auth import SignupRequest, LoginRequest, TokenResponse, UserResponse
 
 router = APIRouter()
 settings = get_settings()
 
-# Mock user database (replace with real database in production)
-MOCK_USERS = {
-    "student1": {
-        "id": "11111111-1111-1111-1111-111111111111",
-        "email": "student@example.com",
-        "name": "Alex Student",
-        "role": "student",
-    },
-    "student2": {
-        "id": "22222222-2222-2222-2222-222222222222",
-        "email": "student2@example.com",
-        "name": "Jordan Student",
-        "role": "student",
-    },
-    "instructor": {
-        "id": "33333333-3333-3333-3333-333333333333",
-        "email": "instructor@example.com",
-        "name": "Dr. Taylor Instructor",
-        "role": "instructor",
-    },
-    "admin": {
-        "id": "44444444-4444-4444-4444-444444444444",
-        "email": "admin@example.com",
-        "name": "System Admin",
-        "role": "admin",
-    },
-}
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
-class MockLoginRequest(BaseModel):
-    """Request to login as a mock user."""
-
-    user_key: str  # One of: student1, student2, instructor, admin
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
 
 
-class TokenResponse(BaseModel):
-    """JWT token response."""
-
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int
-    user: dict
-
-
-class UserResponse(BaseModel):
-    """Current user response."""
-
-    id: str
-    email: str
-    name: str
-    role: str
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -81,86 +40,124 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, settings.secret_key, algorithm="HS256")
 
 
-def get_current_user_from_token(token: str) -> dict:
-    """Decode and validate JWT token."""
+async def get_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """Decode JWT and return the authenticated User from DB."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if token is None:
+        raise credentials_exception
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
-        user_id = payload.get("sub")
+        user_id: str = payload.get("sub")
         if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == UUID(user_id)).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+
+def require_role(*roles: str):
+    """Dependency factory that requires the user to have one of the given roles."""
+    async def check_role(current_user: User = Depends(get_current_user)):
+        if current_user.role.value not in roles:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
             )
-        # Find user by ID
-        for user in MOCK_USERS.values():
-            if user["id"] == user_id:
-                return user
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-    except jwt.JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-        )
+        return current_user
+    return check_role
 
 
-@router.get("/mock-users")
-async def list_mock_users():
-    """List available mock users for development.
-
-    WARNING: This endpoint only exists in development mode.
-    """
-    if settings.env != "development":
-        raise HTTPException(status_code=404, detail="Not found")
-
-    return {
-        "warning": "MOCK AUTH - Development only. Replace before production.",
-        "users": [
-            {"key": key, "name": user["name"], "role": user["role"]}
-            for key, user in MOCK_USERS.items()
-        ],
-    }
-
-
-@router.post("/mock-login", response_model=TokenResponse)
-async def mock_login(request: MockLoginRequest):
-    """Login as a mock user for development.
-
-    WARNING: This endpoint only exists in development mode.
-    Replace with real OAuth 2.0 before production.
-    """
-    if settings.env != "development":
-        raise HTTPException(status_code=404, detail="Not found")
-
-    user = MOCK_USERS.get(request.user_key)
-    if not user:
+@router.post("/signup", response_model=TokenResponse)
+async def signup(request: SignupRequest, db: Session = Depends(get_db)):
+    """Create a new user account."""
+    # Check if email already exists
+    existing = db.query(User).filter(User.email == request.email).first()
+    if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown user key. Available: {list(MOCK_USERS.keys())}",
+            detail="Email already registered",
         )
 
-    # Create access token
-    access_token = create_access_token(data={"sub": user["id"]})
+    # Validate role
+    try:
+        role = UserRole(request.role)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {[r.value for r in UserRole]}",
+        )
+
+    user = User(
+        email=request.email,
+        name=request.name,
+        role=role,
+        password_hash=hash_password(request.password),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(data={"sub": str(user.id)})
 
     return TokenResponse(
         access_token=access_token,
         expires_in=settings.access_token_expire_minutes * 60,
-        user=user,
+        user=UserResponse(
+            id=str(user.id),
+            email=user.email,
+            name=user.name,
+            role=user.role.value,
+        ),
+    )
+
+
+@router.post("/login", response_model=TokenResponse)
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """Log in with email and password."""
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user or not user.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    if not verify_password(request.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    access_token = create_access_token(data={"sub": str(user.id)})
+
+    return TokenResponse(
+        access_token=access_token,
+        expires_in=settings.access_token_expire_minutes * 60,
+        user=UserResponse(
+            id=str(user.id),
+            email=user.email,
+            name=user.name,
+            role=user.role.value,
+        ),
     )
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user(token: str = Depends(lambda: None)):
-    """Get current authenticated user.
-
-    Note: In a real app, this would use OAuth2PasswordBearer.
-    For mock auth, pass token as query param: /me?token=xxx
-    """
-    # For now, return a placeholder - we'll implement proper token handling
-    # when we add the auth middleware
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated. Use /mock-login first.",
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Get the currently authenticated user."""
+    return UserResponse(
+        id=str(current_user.id),
+        email=current_user.email,
+        name=current_user.name,
+        role=current_user.role.value,
     )

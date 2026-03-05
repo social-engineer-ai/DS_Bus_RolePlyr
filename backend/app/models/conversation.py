@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey, Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
 
@@ -42,13 +42,17 @@ class Conversation(Base, UUIDMixin):
     scenario_id = Column(UUID(as_uuid=True), ForeignKey("scenarios.id"), nullable=False)
     assignment_id = Column(UUID(as_uuid=True), ForeignKey("assignments.id"), nullable=True)
     context = Column(Text, nullable=True)  # Student's model description
-    mode = Column(SQLEnum(ConversationMode), nullable=False, default=ConversationMode.PRACTICE)
+    mode = Column(SQLEnum(ConversationMode, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ConversationMode.PRACTICE)
     status = Column(
-        SQLEnum(ConversationStatus), nullable=False, default=ConversationStatus.IN_PROGRESS
+        SQLEnum(ConversationStatus, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ConversationStatus.IN_PROGRESS
     )
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     completed_at = Column(DateTime, nullable=True)
     turn_count = Column(Integer, default=0, nullable=False)
+    violation_count = Column(Integer, default=0, nullable=False)
+    violation_log = Column(JSONB, nullable=True)
+    ended_at = Column(DateTime, nullable=True)
+    total_active_seconds = Column(Integer, nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="conversations")
@@ -77,7 +81,7 @@ class Message(Base, UUIDMixin, TimestampMixin):
     conversation_id = Column(
         UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=False
     )
-    role = Column(SQLEnum(MessageRole), nullable=False)
+    role = Column(SQLEnum(MessageRole, values_callable=lambda x: [e.value for e in x]), nullable=False)
     content = Column(Text, nullable=False)
 
     # Relationships

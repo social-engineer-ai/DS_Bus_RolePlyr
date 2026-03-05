@@ -5,10 +5,14 @@ Run with: python -m app.scripts.seed
 
 from uuid import UUID
 
-from app.database import SessionLocal, engine, Base
-from app.models import User, Course, Enrollment, Persona, Rubric, Scenario
+from passlib.context import CryptContext
+
+from app.database import SessionLocal
+from app.models import User, Course, Enrollment, Persona, Rubric, Scenario, Assignment
 from app.models.user import UserRole
 from app.models.course import EnrollmentRole
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # Default rubric criteria based on PRD
@@ -213,12 +217,63 @@ DEFAULT_PERSONAS = [
 ]
 
 
+# Seed users: 2 instructors, 5 students
+SEED_USERS = [
+    {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "email": "student1@stakeholdersim.edu",
+        "name": "Alex Chen",
+        "role": UserRole.STUDENT,
+        "password": "student123",
+    },
+    {
+        "id": "22222222-2222-2222-2222-222222222222",
+        "email": "student2@stakeholdersim.edu",
+        "name": "Jordan Rivera",
+        "role": UserRole.STUDENT,
+        "password": "student123",
+    },
+    {
+        "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "email": "student3@stakeholdersim.edu",
+        "name": "Morgan Lee",
+        "role": UserRole.STUDENT,
+        "password": "student123",
+    },
+    {
+        "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "email": "student4@stakeholdersim.edu",
+        "name": "Taylor Kim",
+        "role": UserRole.STUDENT,
+        "password": "student123",
+    },
+    {
+        "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+        "email": "student5@stakeholdersim.edu",
+        "name": "Casey Patel",
+        "role": UserRole.STUDENT,
+        "password": "student123",
+    },
+    {
+        "id": "33333333-3333-3333-3333-333333333333",
+        "email": "instructor@stakeholdersim.edu",
+        "name": "Dr. Taylor Instructor",
+        "role": UserRole.INSTRUCTOR,
+        "password": "instructor123",
+    },
+    {
+        "id": "44444444-4444-4444-4444-444444444444",
+        "email": "admin@stakeholdersim.edu",
+        "name": "Prof. Admin User",
+        "role": UserRole.INSTRUCTOR,
+        "password": "admin123",
+    },
+]
+
+
 def seed_database():
     """Seed the database with test data."""
     print("Seeding database...")
-
-    # Create tables
-    Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
     try:
@@ -227,33 +282,17 @@ def seed_database():
             print("Database already seeded. Skipping.")
             return
 
-        # Create users (matching mock auth users)
-        users = [
-            User(
-                id=UUID("11111111-1111-1111-1111-111111111111"),
-                email="student@example.com",
-                name="Alex Student",
-                role=UserRole.STUDENT,
-            ),
-            User(
-                id=UUID("22222222-2222-2222-2222-222222222222"),
-                email="student2@example.com",
-                name="Jordan Student",
-                role=UserRole.STUDENT,
-            ),
-            User(
-                id=UUID("33333333-3333-3333-3333-333333333333"),
-                email="instructor@example.com",
-                name="Dr. Taylor Instructor",
-                role=UserRole.INSTRUCTOR,
-            ),
-            User(
-                id=UUID("44444444-4444-4444-4444-444444444444"),
-                email="admin@example.com",
-                name="System Admin",
-                role=UserRole.ADMIN,
-            ),
-        ]
+        # Create users with hashed passwords
+        users = []
+        for u in SEED_USERS:
+            user = User(
+                id=UUID(u["id"]),
+                email=u["email"],
+                name=u["name"],
+                role=u["role"],
+                password_hash=pwd_context.hash(u["password"]),
+            )
+            users.append(user)
         db.add_all(users)
         print(f"  Created {len(users)} users")
 
@@ -266,24 +305,24 @@ def seed_database():
         db.add(course)
         print("  Created sample course")
 
-        # Enroll users
-        enrollments = [
-            Enrollment(
-                user_id=UUID("11111111-1111-1111-1111-111111111111"),
-                course_id=course.id,
-                role=EnrollmentRole.STUDENT,
-            ),
-            Enrollment(
-                user_id=UUID("22222222-2222-2222-2222-222222222222"),
-                course_id=course.id,
-                role=EnrollmentRole.STUDENT,
-            ),
+        # Enroll all students + instructor
+        enrollments = []
+        for u in SEED_USERS:
+            if u["role"] == UserRole.STUDENT:
+                enrollments.append(
+                    Enrollment(
+                        user_id=UUID(u["id"]),
+                        course_id=course.id,
+                        role=EnrollmentRole.STUDENT,
+                    )
+                )
+        enrollments.append(
             Enrollment(
                 user_id=UUID("33333333-3333-3333-3333-333333333333"),
                 course_id=course.id,
                 role=EnrollmentRole.INSTRUCTOR,
-            ),
-        ]
+            )
+        )
         db.add_all(enrollments)
         print(f"  Created {len(enrollments)} enrollments")
 
@@ -309,9 +348,9 @@ def seed_database():
         db.add_all(personas)
         print(f"  Created {len(personas)} personas")
 
-        # Create sample scenarios
+        # Create scenarios (for first 3 personas)
         scenarios = []
-        for i, persona in enumerate(personas[:3], start=1):  # Create scenarios for first 3 personas
+        for i, persona in enumerate(personas[:3], start=1):
             scenario = Scenario(
                 id=UUID(f"8888888{i}-8888-8888-8888-888888888888"),
                 course_id=course.id,
@@ -326,8 +365,42 @@ def seed_database():
         db.add_all(scenarios)
         print(f"  Created {len(scenarios)} scenarios")
 
+        # Create 2 graded assignments
+        assignments = [
+            Assignment(
+                id=UUID("99999991-9999-9999-9999-999999999999"),
+                course_id=course.id,
+                scenario_id=scenarios[0].id,
+                title="Assignment 1: Present to VP of Talent Acquisition",
+                instructions="Present your resume screening model to Patricia Chen. Explain the business value, address her concerns, and make a clear recommendation.",
+                max_attempts=2,
+                is_active=True,
+            ),
+            Assignment(
+                id=UUID("99999992-9999-9999-9999-999999999999"),
+                course_id=course.id,
+                scenario_id=scenarios[2].id,
+                title="Assignment 2: Present to CFO",
+                instructions="Present your model's financial case to Jennifer Walsh. Focus on ROI, cost analysis, and risk mitigation.",
+                max_attempts=2,
+                is_active=True,
+            ),
+        ]
+        db.add_all(assignments)
+        print(f"  Created {len(assignments)} assignments")
+
         db.commit()
-        print("Database seeded successfully!")
+
+        # Print credentials table
+        print("\n" + "=" * 70)
+        print("SEED CREDENTIALS")
+        print("=" * 70)
+        print(f"{'Role':<14} {'Email':<36} {'Password'}")
+        print("-" * 70)
+        for u in SEED_USERS:
+            print(f"{u['role'].value:<14} {u['email']:<36} {u['password']}")
+        print("=" * 70)
+        print("\nDatabase seeded successfully!")
 
     except Exception as e:
         db.rollback()

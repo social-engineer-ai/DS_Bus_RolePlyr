@@ -44,7 +44,7 @@ class Grade(Base, UUIDMixin):
     strengths = Column(JSONB, nullable=True)  # List of strengths
     areas_for_improvement = Column(JSONB, nullable=True)  # List of areas to improve
     ai_confidence = Column(Numeric(3, 2), nullable=True)  # 0.00 - 1.00
-    graded_by = Column(SQLEnum(GradedBy), nullable=False, default=GradedBy.AI)
+    graded_by = Column(SQLEnum(GradedBy, values_callable=lambda x: [e.value for e in x]), nullable=False, default=GradedBy.AI)
     instructor_override = Column(Boolean, default=False, nullable=False)
     override_reason = Column(Text, nullable=True)
     graded_at = Column(DateTime, default=datetime.utcnow, nullable=False)

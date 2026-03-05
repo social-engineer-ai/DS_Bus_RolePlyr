@@ -27,8 +27,6 @@ export default function InstructorDashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Set user to instructor for this page
-    api.setUser('instructor');
     loadDashboard();
   }, []);
 
@@ -67,7 +65,7 @@ export default function InstructorDashboardPage() {
         <div className="text-center">
           <p className="text-red-600 mb-4">{error}</p>
           <p className="text-sm text-gray-500">
-            Make sure you're accessing as an instructor (use ?user_key=instructor)
+            Make sure you're logged in as an instructor account.
           </p>
         </div>
       </div>

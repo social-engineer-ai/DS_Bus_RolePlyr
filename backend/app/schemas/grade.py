@@ -1,7 +1,7 @@
 """Pydantic schemas for grading API."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -34,6 +34,10 @@ class GradeResponse(BaseModel):
     override_reason: Optional[str] = None
     graded_at: datetime
     needs_review: bool = False
+    violation_count: int = 0
+    violation_log: Optional[list[Any]] = None
+    total_active_seconds: Optional[int] = None
+    ended_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

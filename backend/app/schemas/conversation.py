@@ -33,6 +33,29 @@ class SendMessageRequest(BaseModel):
     )
 
 
+class EndConversationRequest(BaseModel):
+    """Request to end a conversation."""
+
+    total_active_seconds: Optional[int] = Field(
+        None, description="Total active seconds tracked by frontend timer"
+    )
+
+
+class ViolationRequest(BaseModel):
+    """Request to log a screen lock violation."""
+
+    violation_number: int = Field(..., description="Which violation this is (1-4)")
+    timestamp: str = Field(..., description="ISO timestamp of the violation")
+    turn_number: int = Field(..., description="Current turn number when violation occurred")
+
+
+class ViolationResponse(BaseModel):
+    """Response after logging a violation."""
+
+    violation_count: int
+    violation_log: list[dict]
+
+
 class MessageResponse(BaseModel):
     """Response containing a single message."""
 
@@ -58,6 +81,10 @@ class ConversationResponse(BaseModel):
     turn_count: int
     started_at: datetime
     completed_at: Optional[datetime] = None
+    violation_count: int = 0
+    violation_log: Optional[list[dict]] = None
+    ended_at: Optional[datetime] = None
+    total_active_seconds: Optional[int] = None
     messages: list[MessageResponse] = []
 
     class Config:

@@ -26,7 +26,6 @@ export default function AssignmentDetailPage() {
   });
 
   useEffect(() => {
-    api.setUser('instructor');
     loadData();
   }, [assignmentId]);
 

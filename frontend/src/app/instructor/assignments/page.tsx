@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api, AssignmentListItem, Scenario, AssignmentCreate } from '@/lib/api';
 
 // Hardcoded course ID from seed data
-const DEFAULT_COURSE_ID = '11111111-1111-1111-1111-111111111111';
+const DEFAULT_COURSE_ID = '55555555-5555-5555-5555-555555555555';
 
 export default function InstructorAssignmentsPage() {
   const router = useRouter();
@@ -26,7 +26,6 @@ export default function InstructorAssignmentsPage() {
   });
 
   useEffect(() => {
-    api.setUser('instructor');
     loadData();
   }, []);
 

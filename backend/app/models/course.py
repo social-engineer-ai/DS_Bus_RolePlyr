@@ -46,7 +46,7 @@ class Enrollment(Base, UUIDMixin):
 
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     course_id = Column(UUID(as_uuid=True), ForeignKey("courses.id"), nullable=False)
-    role = Column(SQLEnum(EnrollmentRole), nullable=False, default=EnrollmentRole.STUDENT)
+    role = Column(SQLEnum(EnrollmentRole, values_callable=lambda x: [e.value for e in x]), nullable=False, default=EnrollmentRole.STUDENT)
 
     # Relationships
     user = relationship("User", back_populates="enrollments")

@@ -1,10 +1,9 @@
 """Grading API endpoints."""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -13,6 +12,7 @@ from app.models.scenario import Scenario
 from app.models.persona import Persona
 from app.models.rubric import Rubric
 from app.models.grade import Grade, GradedBy
+from app.models.user import User
 from app.schemas.grade import (
     GradeResponse,
     GradeSummary,
@@ -23,32 +23,13 @@ from app.schemas.grade import (
     CriterionScore,
 )
 from app.services.grading_engine import GradingEngine
-from app.routers.auth import MOCK_USERS
+from app.routers.auth import get_current_user
 
 router = APIRouter()
 
 
-def get_current_user_id(user_key: Optional[str] = None) -> UUID:
-    """Get current user ID from mock auth."""
-    if not user_key:
-        user_key = "student1"
-    user = MOCK_USERS.get(user_key)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid user")
-    return UUID(user["id"])
-
-
-def get_user_role(user_key: Optional[str] = None) -> str:
-    """Get current user's role."""
-    if not user_key:
-        user_key = "student1"
-    user = MOCK_USERS.get(user_key)
-    return user["role"] if user else "student"
-
-
-def _grade_to_response(grade: Grade, rubric: Rubric) -> GradeResponse:
+def _grade_to_response(grade: Grade, rubric: Rubric, conversation: Conversation = None) -> GradeResponse:
     """Convert Grade model to response schema."""
-    # Convert criteria_scores to proper format
     criteria_scores = {}
     for name, data in grade.criteria_scores.items():
         criteria_scores[name] = CriterionScore(
@@ -58,7 +39,7 @@ def _grade_to_response(grade: Grade, rubric: Rubric) -> GradeResponse:
             feedback=data.get("feedback", ""),
         )
 
-    return GradeResponse(
+    resp = GradeResponse(
         id=grade.id,
         conversation_id=grade.conversation_id,
         rubric_id=grade.rubric_id,
@@ -76,6 +57,14 @@ def _grade_to_response(grade: Grade, rubric: Rubric) -> GradeResponse:
         needs_review=grade.needs_review,
     )
 
+    if conversation:
+        resp.violation_count = conversation.violation_count
+        resp.violation_log = conversation.violation_log
+        resp.total_active_seconds = conversation.total_active_seconds
+        resp.ended_at = conversation.ended_at
+
+    return resp
+
 
 async def _perform_grading(
     conversation_id: UUID,
@@ -92,7 +81,6 @@ async def _perform_grading(
     if conversation.status != ConversationStatus.COMPLETED:
         raise ValueError("Can only grade completed conversations")
 
-    # Get scenario, persona, rubric
     scenario = db.query(Scenario).filter(
         Scenario.id == conversation.scenario_id
     ).first()
@@ -108,11 +96,9 @@ async def _perform_grading(
     if not all([scenario, persona, rubric]):
         raise ValueError("Missing scenario, persona, or rubric")
 
-    # Perform grading
     engine = GradingEngine(rubric)
     grade_data = await engine.grade_conversation(conversation, persona)
 
-    # Create grade record
     grade = engine.create_grade_record(
         conversation_id=conversation.id,
         rubric_id=rubric.id,
@@ -130,13 +116,9 @@ async def _perform_grading(
 async def get_grade(
     conversation_id: UUID,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Get the grade for a conversation."""
-    user_id = get_current_user_id(user_key)
-    user_role = get_user_role(user_key)
-
-    # Get conversation
     conversation = db.query(Conversation).filter(
         Conversation.id == conversation_id
     ).first()
@@ -144,11 +126,9 @@ async def get_grade(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    # Check access
-    if user_role == "student" and conversation.user_id != user_id:
+    if current_user.role.value == "student" and conversation.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Get grade
     grade = db.query(Grade).filter(
         Grade.conversation_id == conversation_id
     ).first()
@@ -156,10 +136,9 @@ async def get_grade(
     if not grade:
         raise HTTPException(status_code=404, detail="Grade not found")
 
-    # Get rubric for max score
     rubric = db.query(Rubric).filter(Rubric.id == grade.rubric_id).first()
 
-    return _grade_to_response(grade, rubric)
+    return _grade_to_response(grade, rubric, conversation)
 
 
 @router.post("/conversations/{conversation_id}/grade", response_model=GradeResponse)
@@ -167,13 +146,9 @@ async def trigger_grading(
     conversation_id: UUID,
     request: TriggerGradeRequest = TriggerGradeRequest(),
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Manually trigger grading for a conversation."""
-    user_id = get_current_user_id(user_key)
-    user_role = get_user_role(user_key)
-
-    # Get conversation
     conversation = db.query(Conversation).filter(
         Conversation.id == conversation_id
     ).first()
@@ -181,8 +156,7 @@ async def trigger_grading(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    # Check access
-    if user_role == "student" and conversation.user_id != user_id:
+    if current_user.role.value == "student" and conversation.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     if conversation.status != ConversationStatus.COMPLETED:
@@ -191,26 +165,22 @@ async def trigger_grading(
             detail="Can only grade completed conversations"
         )
 
-    # Check if already graded
     existing_grade = db.query(Grade).filter(
         Grade.conversation_id == conversation_id
     ).first()
 
     if existing_grade and not request.force:
-        # Get rubric and return existing
         rubric = db.query(Rubric).filter(Rubric.id == existing_grade.rubric_id).first()
-        return _grade_to_response(existing_grade, rubric)
+        return _grade_to_response(existing_grade, rubric, conversation)
 
     if existing_grade and request.force:
-        # Delete existing grade for re-grading
         db.delete(existing_grade)
         db.commit()
 
-    # Perform grading
     try:
         grade = await _perform_grading(conversation_id, db)
         rubric = db.query(Rubric).filter(Rubric.id == grade.rubric_id).first()
-        return _grade_to_response(grade, rubric)
+        return _grade_to_response(grade, rubric, conversation)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Grading failed: {str(e)}")
 
@@ -223,18 +193,15 @@ async def override_grade(
     conversation_id: UUID,
     request: FullGradeOverrideRequest,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Override grades (instructor only)."""
-    user_role = get_user_role(user_key)
-
-    if user_role not in ["instructor", "admin"]:
+    if current_user.role.value not in ["instructor", "admin"]:
         raise HTTPException(
             status_code=403,
             detail="Only instructors can override grades"
         )
 
-    # Get existing grade
     grade = db.query(Grade).filter(
         Grade.conversation_id == conversation_id
     ).first()
@@ -242,10 +209,8 @@ async def override_grade(
     if not grade:
         raise HTTPException(status_code=404, detail="Grade not found")
 
-    # Get rubric
     rubric = db.query(Rubric).filter(Rubric.id == grade.rubric_id).first()
 
-    # Validate criterion names and scores
     criterion_names = {c["name"] for c in rubric.criteria}
     max_scores = {c["name"]: c["max_points"] for c in rubric.criteria}
 
@@ -261,7 +226,6 @@ async def override_grade(
                 detail=f"Score for {name} must be between 0 and {max_scores[name]}"
             )
 
-    # Update criteria scores
     updated_criteria = grade.criteria_scores.copy()
     for name, new_score in request.criteria_scores.items():
         if name in updated_criteria:
@@ -274,10 +238,8 @@ async def override_grade(
                 "feedback": "Score adjusted by instructor",
             }
 
-    # Calculate new total
     new_total = sum(c["score"] for c in updated_criteria.values())
 
-    # Update grade
     grade.criteria_scores = updated_criteria
     grade.total_score = new_total
     grade.instructor_override = True
@@ -288,14 +250,18 @@ async def override_grade(
     db.commit()
     db.refresh(grade)
 
-    return _grade_to_response(grade, rubric)
+    conversation = db.query(Conversation).filter(
+        Conversation.id == conversation_id
+    ).first()
+
+    return _grade_to_response(grade, rubric, conversation)
 
 
 @router.get("/rubrics/{rubric_id}", response_model=RubricResponse)
 async def get_rubric(
     rubric_id: UUID,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Get rubric details."""
     rubric = db.query(Rubric).filter(Rubric.id == rubric_id).first()
@@ -314,19 +280,16 @@ async def get_rubric(
 @router.get("/needs-review", response_model=list[GradeSummary])
 async def list_grades_needing_review(
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     limit: int = 20,
 ):
     """List grades that need instructor review (low confidence)."""
-    user_role = get_user_role(user_key)
-
-    if user_role not in ["instructor", "admin", "ta"]:
+    if current_user.role.value not in ["instructor", "admin"]:
         raise HTTPException(
             status_code=403,
             detail="Only instructors can view grades needing review"
         )
 
-    # Get grades with low confidence
     grades = (
         db.query(Grade)
         .filter(Grade.ai_confidence < 0.7)

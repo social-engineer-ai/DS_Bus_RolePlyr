@@ -24,8 +24,12 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-key-change-in-production"
     access_token_expire_minutes: int = 60 * 24  # 24 hours
 
-    # CORS
-    cors_origins: list[str] = ["http://localhost:3000"]
+    # CORS — comma-separated string, parsed via property
+    cors_origins: str = "http://localhost:3000,http://localhost:3002"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     class Config:
         env_file = ".env"

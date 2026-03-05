@@ -1,7 +1,6 @@
 """Dashboard API endpoints."""
 
 from datetime import datetime, timedelta
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,36 +23,18 @@ from app.schemas.dashboard import (
     StudentSummary,
     GradeForReview,
 )
-from app.routers.auth import MOCK_USERS
+from app.routers.auth import get_current_user
 
 router = APIRouter()
-
-
-def get_current_user_id(user_key: Optional[str] = None) -> UUID:
-    """Get current user ID from mock auth."""
-    if not user_key:
-        user_key = "student1"
-    user = MOCK_USERS.get(user_key)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid user")
-    return UUID(user["id"])
-
-
-def get_user_role(user_key: Optional[str] = None) -> str:
-    """Get current user's role."""
-    if not user_key:
-        user_key = "student1"
-    user = MOCK_USERS.get(user_key)
-    return user["role"] if user else "student"
 
 
 @router.get("/student", response_model=StudentDashboard)
 async def get_student_dashboard(
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Get student dashboard with stats and recent activity."""
-    user_id = get_current_user_id(user_key)
+    user_id = current_user.id
 
     # Get all conversations
     conversations = (
@@ -80,7 +61,6 @@ async def get_student_dashboard(
     # Calculate improvement (first graded vs best)
     improvement = None
     if len(scores) >= 2:
-        # Get first score chronologically
         graded_convs = sorted(
             [c for c in conversations if c.grade],
             key=lambda x: x.started_at
@@ -149,19 +129,17 @@ async def get_student_dashboard(
         stats=stats,
         recent_conversations=recent,
         progress_history=progress,
-        recommended_scenario=None,  # Could add recommendation logic
+        recommended_scenario=None,
     )
 
 
 @router.get("/instructor", response_model=InstructorDashboard)
 async def get_instructor_dashboard(
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Get instructor dashboard with class overview."""
-    role = get_user_role(user_key)
-
-    if role not in ["instructor", "admin"]:
+    if current_user.role.value not in ["instructor", "admin"]:
         raise HTTPException(status_code=403, detail="Instructor access required")
 
     # Get all students
@@ -201,7 +179,7 @@ async def get_instructor_dashboard(
         else:
             distribution["Below 60"] += 1
 
-    # Common struggles (simplified - could use AI analysis)
+    # Common struggles
     common_struggles = []
     low_score_criteria = {}
     for grade in grades:
@@ -210,7 +188,6 @@ async def get_instructor_dashboard(
             if score_pct < 70:
                 low_score_criteria[criterion] = low_score_criteria.get(criterion, 0) + 1
 
-    # Get top 3 struggles
     sorted_struggles = sorted(low_score_criteria.items(), key=lambda x: x[1], reverse=True)
     criterion_names = {
         "business_value_articulation": "Quantifying business value",
@@ -266,7 +243,6 @@ async def get_instructor_dashboard(
 
         last_conv = max(student_convs, key=lambda x: x.started_at) if student_convs else None
 
-        # Flag students with low scores or no recent activity
         needs_attention = False
         if student_scores and sum(student_scores) / len(student_scores) < 60:
             needs_attention = True
@@ -283,7 +259,6 @@ async def get_instructor_dashboard(
             needs_attention=needs_attention,
         ))
 
-    # Sort by needs attention first, then by name
     student_summaries.sort(key=lambda x: (not x.needs_attention, x.name))
 
     # Grades needing review

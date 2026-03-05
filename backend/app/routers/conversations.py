@@ -26,47 +26,21 @@ from app.schemas.conversation import (
     MessageResponse,
     StakeholderMessageResponse,
     EndConversationResponse,
+    EndConversationRequest,
     ScenarioResponse,
+    ViolationRequest,
+    ViolationResponse,
 )
 from app.services.conversation_engine import ConversationEngine
-from app.routers.auth import get_current_user_from_token, MOCK_USERS
+from app.routers.auth import get_current_user
 
 router = APIRouter()
-
-
-# Temporary helper to get user from query param (will be middleware later)
-def get_current_user_id(user_key: Optional[str] = None) -> UUID:
-    """Get current user ID from mock auth.
-
-    In production, this would come from OAuth token.
-    """
-    if not user_key:
-        # Default to student1 for development
-        user_key = "student1"
-    user = MOCK_USERS.get(user_key)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid user")
-    return UUID(user["id"])
-
-
-def get_user_role(user_key: Optional[str] = None) -> str:
-    """Get current user's role."""
-    if not user_key:
-        user_key = "student1"
-    user = MOCK_USERS.get(user_key)
-    return user["role"] if user else "student"
-
-
-def is_instructor_or_admin(user_key: Optional[str] = None) -> bool:
-    """Check if user is instructor or admin."""
-    role = get_user_role(user_key)
-    return role in ["instructor", "admin"]
 
 
 @router.get("/scenarios", response_model=list[ScenarioResponse])
 async def list_scenarios(
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """List available scenarios for practice."""
     scenarios = db.query(Scenario).filter(Scenario.is_practice == True).all()
@@ -93,11 +67,9 @@ async def list_scenarios(
 async def start_conversation(
     request: StartConversationRequest,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Start a new conversation with a stakeholder persona."""
-    user_id = get_current_user_id(user_key)
-
     # Get scenario
     scenario = db.query(Scenario).filter(Scenario.id == request.scenario_id).first()
     if not scenario:
@@ -113,7 +85,7 @@ async def start_conversation(
 
     # Create conversation
     conversation = Conversation(
-        user_id=user_id,
+        user_id=current_user.id,
         scenario_id=scenario.id,
         assignment_id=request.assignment_id,
         context=request.context,
@@ -165,11 +137,9 @@ async def start_conversation(
 async def get_conversation(
     conversation_id: UUID,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Get conversation details and message history."""
-    user_id = get_current_user_id(user_key)
-
     conversation = (
         db.query(Conversation)
         .filter(Conversation.id == conversation_id)
@@ -179,7 +149,7 @@ async def get_conversation(
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     # Check ownership (instructors/admins can view any conversation)
-    if conversation.user_id != user_id and not is_instructor_or_admin(user_key):
+    if conversation.user_id != current_user.id and current_user.role.value not in ["instructor", "admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Get persona
@@ -205,6 +175,10 @@ async def get_conversation(
         turn_count=conversation.turn_count,
         started_at=conversation.started_at,
         completed_at=conversation.completed_at,
+        violation_count=conversation.violation_count,
+        violation_log=conversation.violation_log,
+        ended_at=conversation.ended_at,
+        total_active_seconds=conversation.total_active_seconds,
         messages=[
             MessageResponse(
                 id=msg.id,
@@ -222,11 +196,9 @@ async def send_message(
     conversation_id: UUID,
     request: SendMessageRequest,
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Send a message and get the stakeholder's response."""
-    user_id = get_current_user_id(user_key)
-
     # Get conversation
     conversation = (
         db.query(Conversation)
@@ -236,7 +208,7 @@ async def send_message(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    if conversation.user_id != user_id:
+    if conversation.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     if conversation.status != ConversationStatus.IN_PROGRESS:
@@ -313,12 +285,11 @@ async def send_message(
 @router.post("/{conversation_id}/end", response_model=EndConversationResponse)
 async def end_conversation(
     conversation_id: UUID,
+    request: EndConversationRequest = EndConversationRequest(),
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """End a conversation and trigger grading."""
-    user_id = get_current_user_id(user_key)
-
     conversation = (
         db.query(Conversation)
         .filter(Conversation.id == conversation_id)
@@ -327,7 +298,7 @@ async def end_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    if conversation.user_id != user_id:
+    if conversation.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     if conversation.status != ConversationStatus.IN_PROGRESS:
@@ -361,13 +332,15 @@ async def end_conversation(
     db.add(closing_message)
 
     # Update conversation status
+    now = datetime.utcnow()
     conversation.status = ConversationStatus.COMPLETED
-    conversation.completed_at = datetime.utcnow()
+    conversation.completed_at = now
+    conversation.ended_at = now
+    if request.total_active_seconds is not None:
+        conversation.total_active_seconds = request.total_active_seconds
 
     db.commit()
     db.refresh(closing_message)
-
-    # TODO: Trigger grading in background
 
     return EndConversationResponse(
         id=conversation.id,
@@ -383,19 +356,58 @@ async def end_conversation(
     )
 
 
+@router.post("/{conversation_id}/violations", response_model=ViolationResponse)
+async def log_violation(
+    conversation_id: UUID,
+    request: ViolationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Log a screen lock violation for a conversation."""
+    conversation = (
+        db.query(Conversation)
+        .filter(Conversation.id == conversation_id)
+        .first()
+    )
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    if conversation.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Append to violation log
+    log_entry = {
+        "violation_number": request.violation_number,
+        "timestamp": request.timestamp,
+        "turn_number": request.turn_number,
+    }
+    if conversation.violation_log is None:
+        conversation.violation_log = [log_entry]
+    else:
+        conversation.violation_log = conversation.violation_log + [log_entry]
+
+    conversation.violation_count = len(conversation.violation_log)
+
+    db.commit()
+    db.refresh(conversation)
+
+    return ViolationResponse(
+        violation_count=conversation.violation_count,
+        violation_log=conversation.violation_log,
+    )
+
+
 @router.get("", response_model=list[ConversationListItem])
 async def list_conversations(
     db: Session = Depends(get_db),
-    user_key: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     limit: int = 20,
     offset: int = 0,
 ):
     """List user's conversations."""
-    user_id = get_current_user_id(user_key)
-
     conversations = (
         db.query(Conversation)
-        .filter(Conversation.user_id == user_id)
+        .filter(Conversation.user_id == current_user.id)
         .order_by(Conversation.started_at.desc())
         .offset(offset)
         .limit(limit)
