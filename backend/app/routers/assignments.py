@@ -73,7 +73,6 @@ async def create_assignment(
         scenario_name=scenario.name,
         persona_name=persona.name if persona else "Unknown",
         created_at=assignment.created_at,
-        updated_at=assignment.updated_at,
     )
 
 
@@ -200,7 +199,6 @@ async def get_assignment(
         scenario_name=scenario.name if scenario else "Unknown",
         persona_name=persona.name if persona else "Unknown",
         created_at=assignment.created_at,
-        updated_at=assignment.updated_at,
     )
 
 
@@ -240,7 +238,6 @@ async def update_assignment(
         scenario_name=scenario.name if scenario else "Unknown",
         persona_name=persona.name if persona else "Unknown",
         created_at=assignment.created_at,
-        updated_at=assignment.updated_at,
     )
 
 

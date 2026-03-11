@@ -43,7 +43,6 @@ class AssignmentResponse(AssignmentBase):
     scenario_name: str
     persona_name: str
     created_at: datetime
-    updated_at: datetime
 
     class Config:
         from_attributes = True
