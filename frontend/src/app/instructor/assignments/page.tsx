@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, AssignmentListItem, Scenario, AssignmentCreate } from '@/lib/api';
+import { api, AssignmentListItem, Scenario, AssignmentCreate, PersonaListItem, RubricListItem, ScenarioCreate } from '@/lib/api';
 
 // Hardcoded course ID from seed data
 const DEFAULT_COURSE_ID = '55555555-5555-5555-5555-555555555555';
@@ -11,10 +11,22 @@ export default function InstructorAssignmentsPage() {
   const router = useRouter();
   const [assignments, setAssignments] = useState<AssignmentListItem[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [personas, setPersonas] = useState<PersonaListItem[]>([]);
+  const [rubrics, setRubrics] = useState<RubricListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [showScenarioModal, setShowScenarioModal] = useState(false);
+  const [creatingScenario, setCreatingScenario] = useState(false);
+  const [scenarioForm, setScenarioForm] = useState({
+    name: '',
+    description: '',
+    persona_id: '',
+    rubric_id: '',
+    is_practice: false,
+    max_turns: 15,
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -32,12 +44,16 @@ export default function InstructorAssignmentsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [assignmentData, scenarioData] = await Promise.all([
+      const [assignmentData, scenarioData, personaData, rubricData] = await Promise.all([
         api.listAssignments(),
         api.getScenarios(),
+        api.listPersonas(),
+        api.listRubrics(),
       ]);
       setAssignments(assignmentData);
       setScenarios(scenarioData);
+      setPersonas(personaData);
+      setRubrics(rubricData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
@@ -91,6 +107,35 @@ export default function InstructorAssignmentsPage() {
     }
   };
 
+  const handleCreateScenario = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scenarioForm.name || !scenarioForm.persona_id || !scenarioForm.rubric_id) return;
+
+    try {
+      setCreatingScenario(true);
+      const data: ScenarioCreate = {
+        course_id: DEFAULT_COURSE_ID,
+        name: scenarioForm.name,
+        description: scenarioForm.description || undefined,
+        persona_id: scenarioForm.persona_id,
+        rubric_id: scenarioForm.rubric_id,
+        is_practice: scenarioForm.is_practice,
+        max_turns: scenarioForm.max_turns,
+      };
+      const created = await api.createScenario(data);
+      setShowScenarioModal(false);
+      setScenarioForm({ name: '', description: '', persona_id: '', rubric_id: '', is_practice: false, max_turns: 15 });
+      // Refresh scenarios and auto-select the new one
+      const updatedScenarios = await api.getScenarios();
+      setScenarios(updatedScenarios);
+      setFormData({ ...formData, scenario_id: created.id });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create scenario');
+    } finally {
+      setCreatingScenario(false);
+    }
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -119,7 +164,10 @@ export default function InstructorAssignmentsPage() {
           </div>
           <nav className="flex gap-4">
             <a href="/instructor" className="text-indigo-200 hover:text-white">Dashboard</a>
-            <a href="/" className="text-indigo-200 hover:text-white">Home</a>
+            <a href="/instructor/personas" className="text-indigo-200 hover:text-white">Personas</a>
+            <a href="/instructor/rubrics" className="text-indigo-200 hover:text-white">Rubrics</a>
+            <a href="/instructor/scenarios" className="text-indigo-200 hover:text-white">Scenarios</a>
+            <a href="/instructor/assignments" className="text-white font-medium">Assignments</a>
           </nav>
         </div>
       </header>
@@ -240,6 +288,103 @@ export default function InstructorAssignmentsPage() {
         </div>
       </main>
 
+      {/* Inline Create Scenario Modal */}
+      {showScenarioModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+            <div className="p-6">
+              <h2 className="text-xl font-semibold mb-4">Create New Scenario</h2>
+              <form onSubmit={handleCreateScenario} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                  <input
+                    type="text"
+                    value={scenarioForm.name}
+                    onChange={(e) => setScenarioForm({ ...scenarioForm, name: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="e.g., CEO Budget Presentation"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    value={scenarioForm.description}
+                    onChange={(e) => setScenarioForm({ ...scenarioForm, description: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Persona *</label>
+                  <select
+                    value={scenarioForm.persona_id}
+                    onChange={(e) => setScenarioForm({ ...scenarioForm, persona_id: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  >
+                    <option value="">Select a persona...</option>
+                    {personas.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name} - {p.title}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rubric *</label>
+                  <select
+                    value={scenarioForm.rubric_id}
+                    onChange={(e) => setScenarioForm({ ...scenarioForm, rubric_id: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  >
+                    <option value="">Select a rubric...</option>
+                    {rubrics.map((r) => (
+                      <option key={r.id} value={r.id}>{r.name} ({r.total_points} pts)</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                    <select
+                      value={scenarioForm.is_practice ? 'practice' : 'graded'}
+                      onChange={(e) => setScenarioForm({ ...scenarioForm, is_practice: e.target.value === 'practice' })}
+                      className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="practice">Practice</option>
+                      <option value="graded">Graded</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Turns</label>
+                    <input
+                      type="number"
+                      value={scenarioForm.max_turns}
+                      onChange={(e) => setScenarioForm({ ...scenarioForm, max_turns: parseInt(e.target.value) || 15 })}
+                      className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      min={1}
+                      max={50}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button type="button" onClick={() => setShowScenarioModal(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creatingScenario || !scenarioForm.name || !scenarioForm.persona_id || !scenarioForm.rubric_id}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {creatingScenario ? 'Creating...' : 'Create Scenario'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Assignment Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -267,7 +412,13 @@ export default function InstructorAssignmentsPage() {
                   </label>
                   <select
                     value={formData.scenario_id}
-                    onChange={(e) => setFormData({ ...formData, scenario_id: e.target.value })}
+                    onChange={(e) => {
+                      if (e.target.value === '__create_new__') {
+                        setShowScenarioModal(true);
+                      } else {
+                        setFormData({ ...formData, scenario_id: e.target.value });
+                      }
+                    }}
                     className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     required
                   >
@@ -277,6 +428,7 @@ export default function InstructorAssignmentsPage() {
                         {scenario.name} - {scenario.persona_name}
                       </option>
                     ))}
+                    <option value="__create_new__">+ Create New Scenario</option>
                   </select>
                 </div>
 

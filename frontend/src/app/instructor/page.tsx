@@ -86,6 +86,9 @@ export default function InstructorDashboardPage() {
             <p className="text-sm text-indigo-200">StakeholderSim</p>
           </div>
           <nav className="flex gap-4">
+            <a href="/instructor/personas" className="text-indigo-200 hover:text-white">Personas</a>
+            <a href="/instructor/rubrics" className="text-indigo-200 hover:text-white">Rubrics</a>
+            <a href="/instructor/scenarios" className="text-indigo-200 hover:text-white">Scenarios</a>
             <a href="/instructor/assignments" className="text-indigo-200 hover:text-white">Assignments</a>
             <a href="/" className="text-indigo-200 hover:text-white">Home</a>
           </nav>
