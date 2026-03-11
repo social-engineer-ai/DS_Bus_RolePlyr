@@ -97,7 +97,7 @@ async def start_conversation(
     db.flush()
 
     # Generate opening message from stakeholder
-    engine = ConversationEngine(persona=persona, context=request.context)
+    engine = ConversationEngine(persona=persona, context=request.context, scenario_description=scenario.description)
     opening_message = await engine.get_opening_message()
 
     # Save stakeholder's opening message
