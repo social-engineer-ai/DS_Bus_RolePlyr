@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, StudentAssignment, Scenario } from '@/lib/api';
+import { api, StudentAssignment } from '@/lib/api';
 
 export default function StudentAssignmentsPage() {
   const router = useRouter();
   const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startingAssignment, setStartingAssignment] = useState<string | null>(null);
@@ -19,12 +18,8 @@ export default function StudentAssignmentsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [assignmentData, scenarioData] = await Promise.all([
-        api.getStudentAssignments(),
-        api.getScenarios(),
-      ]);
+      const assignmentData = await api.getStudentAssignments();
       setAssignments(assignmentData);
-      setScenarios(scenarioData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load assignments');
     } finally {
@@ -35,14 +30,8 @@ export default function StudentAssignmentsPage() {
   const startAssignment = async (assignment: StudentAssignment) => {
     try {
       setStartingAssignment(assignment.id);
-      // Find the matching scenario
-      const scenario = scenarios.find(s => s.name === assignment.scenario_name);
-      if (!scenario) {
-        throw new Error('Scenario not found');
-      }
-
       const conversation = await api.startConversation(
-        scenario.id,
+        assignment.scenario_id,
         `Assignment: ${assignment.title}`,
         assignment.id
       );

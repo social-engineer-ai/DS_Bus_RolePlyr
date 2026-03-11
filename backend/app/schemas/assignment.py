@@ -68,6 +68,7 @@ class StudentAssignment(BaseModel):
     id: UUID
     title: str
     instructions: Optional[str]
+    scenario_id: UUID
     scenario_name: str
     persona_name: str
     persona_title: str

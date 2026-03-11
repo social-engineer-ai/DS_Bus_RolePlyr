@@ -160,6 +160,7 @@ async def get_student_assignments(
             id=assignment.id,
             title=assignment.title,
             instructions=assignment.instructions,
+            scenario_id=scenario.id,
             scenario_name=scenario.name,
             persona_name=persona.name,
             persona_title=persona.title,

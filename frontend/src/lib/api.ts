@@ -191,6 +191,7 @@ export interface StudentAssignment {
   id: string;
   title: string;
   instructions: string | null;
+  scenario_id: string;
   scenario_name: string;
   persona_name: string;
   persona_title: string;
