@@ -172,7 +172,7 @@ export default function TakeQuizPage() {
           <div>
             <h1 className="text-lg font-bold text-gray-800">Quiz</h1>
             <p className="text-sm text-gray-500">
-              {answeredCount} of {questions.length} answered
+              {answeredCount} answered — pick any 5 of {questions.length}
             </p>
           </div>
           <div className="flex items-center gap-4">

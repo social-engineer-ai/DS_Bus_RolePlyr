@@ -394,7 +394,7 @@ def seed_database():
             id=UUID("aaaa0001-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
             course_id=course.id,
             title="BADM 558 — Big Data Infrastructure Quiz Prep",
-            description="15 questions covering Kinesis Data Streams + Firehose, Glue ETL, and S3 + Athena. Focus on WHY we use each service and KEY DECISIONS when configuring them.",
+            description="15 questions covering Kinesis Data Streams + Firehose, Glue ETL, and S3 + Athena. Answer any 5 questions (3 pts each, 15 pts total). Focus on WHY we use each service and KEY DECISIONS when configuring them.",
             max_attempts=10,
             is_active=True,
             show_answers_after_submit=True,
@@ -414,7 +414,7 @@ def seed_database():
                     "programmable consumer", "zero transformation", "custom processing",
                     "one file per order", "buffered",
                 ],
-                points=5,
+                points=3,
                 order_index=0,
             ),
             QuizQuestion(
@@ -427,7 +427,7 @@ def seed_database():
                     "fraud detection", "business logic", "sub-second",
                     "individual records", "cannot transform",
                 ],
-                points=5,
+                points=3,
                 order_index=1,
             ),
             QuizQuestion(
@@ -440,7 +440,7 @@ def seed_database():
                     "small file problem", "buffer", "delay",
                     "batch", "trade-off",
                 ],
-                points=5,
+                points=3,
                 order_index=2,
             ),
             QuizQuestion(
@@ -453,7 +453,7 @@ def seed_database():
                     "historical", "reprocess", "catch up", "backlog",
                     "after the trigger", "24 hours",
                 ],
-                points=5,
+                points=3,
                 order_index=3,
             ),
             QuizQuestion(
@@ -466,7 +466,7 @@ def seed_database():
                     "LIST operations", "overhead", "accumulate",
                     "query performance", "cost",
                 ],
-                points=5,
+                points=3,
                 order_index=4,
             ),
             # --- GLUE ETL (Q6-Q10) ---
@@ -480,7 +480,7 @@ def seed_database():
                     "REGEXP_REPLACE", "parsing error", "NULL",
                     "transform", "strip",
                 ],
-                points=5,
+                points=3,
                 order_index=5,
             ),
             QuizQuestion(
@@ -493,7 +493,7 @@ def seed_database():
                     "unified table", "UNION ALL", "partitions",
                     "combined schema", "advanced options",
                 ],
-                points=5,
+                points=3,
                 order_index=6,
             ),
             QuizQuestion(
@@ -506,7 +506,7 @@ def seed_database():
                     "positionally", "COALESCE", "schema evolution",
                     "renamed", "two columns", "additive",
                 ],
-                points=5,
+                points=3,
                 order_index=7,
             ),
             QuizQuestion(
@@ -519,7 +519,7 @@ def seed_database():
                     "version control", "error handling", "multi-path",
                     "feature engineering", "limits", "prototyping",
                 ],
-                points=5,
+                points=3,
                 order_index=8,
             ),
             QuizQuestion(
@@ -532,7 +532,7 @@ def seed_database():
                     "Spark", "auto-scaling", "compute",
                     "memory", "vCPU",
                 ],
-                points=5,
+                points=3,
                 order_index=9,
             ),
             # --- S3 + ATHENA (Q11-Q15) ---
@@ -546,7 +546,7 @@ def seed_database():
                     "compression", "Snappy", "$5 per TB",
                     "cost", "scan less",
                 ],
-                points=5,
+                points=3,
                 order_index=10,
             ),
             QuizQuestion(
@@ -559,7 +559,7 @@ def seed_database():
                     "all columns", "fewer columns", "wider",
                     "advantage", "row by row",
                 ],
-                points=5,
+                points=3,
                 order_index=11,
             ),
             QuizQuestion(
@@ -572,7 +572,7 @@ def seed_database():
                     "cleaned", "aggregation", "Parquet",
                     "re-run", "audit", "compliance",
                 ],
-                points=5,
+                points=3,
                 order_index=12,
             ),
             QuizQuestion(
@@ -585,7 +585,7 @@ def seed_database():
                     "no infrastructure", "24/7", "running instance",
                     "cost", "S3 directly",
                 ],
-                points=5,
+                points=3,
                 order_index=13,
             ),
             QuizQuestion(
@@ -598,7 +598,7 @@ def seed_database():
                     "by name", "column name", "schema evolution",
                     "no error", "misalignment", "embedded",
                 ],
-                points=5,
+                points=3,
                 order_index=14,
             ),
         ]

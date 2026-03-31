@@ -168,7 +168,9 @@ async def get_student_quizzes(
                 if best_score is None or attempt.score > best_score:
                     best_score = attempt.score
 
-        total_points = sum(q.points for q in questions)
+        # "Answer any 5" model: max score = 5 * points_per_question
+        points_per_q = questions[0].points if questions else 3
+        total_points = 5 * points_per_q
 
         can_attempt = attempts_used < quiz.max_attempts
         if quiz.due_date and datetime.utcnow() > quiz.due_date:
@@ -539,10 +541,14 @@ async def submit_quiz_attempt(
     # Grade each answer
     answer_records = []
     total_score = 0.0
-    max_score = sum(q.points for q in questions)
 
     # Build lookup of submitted answers
     submitted = {a.question_id: a.student_answer for a in submission.answers}
+
+    # Only count answered questions (pick any 5 model: max_score = 5 * points_per_q)
+    answered_questions = [q for q in questions if submitted.get(q.id)]
+    max_answered = min(len(answered_questions), 5)
+    max_score = max_answered * (questions[0].points if questions else 3)
 
     for question in questions:
         student_answer = submitted.get(question.id)
