@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, StudentQuestionView, AnswerSubmit } from '@/lib/api';
+import { useScreenLock } from '@/components/useScreenLock';
+import { ViolationToast } from '@/components/ViolationToast';
+import { ViolationModal } from '@/components/ViolationModal';
 
 export default function TakeQuizPage() {
   const params = useParams();
@@ -15,6 +18,32 @@ export default function TakeQuizPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [started, setStarted] = useState(false);
+
+  // Auto-submit on 4th violation
+  const handleTerminate = useCallback(async () => {
+    if (!attemptId) return;
+    try {
+      const answerList: AnswerSubmit[] = questions
+        .filter(q => answers[q.id])
+        .map(q => ({ question_id: q.id, student_answer: answers[q.id] }));
+      const result = await api.submitQuizAttempt(attemptId, { answers: answerList });
+      sessionStorage.setItem(`quiz_result_${quizId}`, JSON.stringify(result));
+    } catch {
+      // best effort
+    }
+  }, [attemptId, questions, answers, quizId]);
+
+  const {
+    violationCount,
+    showToast,
+    setShowToast,
+    showModal,
+    modalViolationNumber,
+    handleModalAcknowledge,
+    terminated,
+    isPaused,
+  } = useScreenLock({ enabled: started, onTerminate: handleTerminate });
 
   useEffect(() => {
     loadQuiz();
@@ -29,6 +58,7 @@ export default function TakeQuizPage() {
       ]);
       setQuestions(questionsData);
       setAttemptId(attemptData.attempt_id);
+      setStarted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load quiz');
     } finally {
@@ -41,7 +71,7 @@ export default function TakeQuizPage() {
   }, []);
 
   const handleSubmit = async () => {
-    if (!attemptId) return;
+    if (!attemptId || terminated) return;
 
     const unanswered = questions.filter(q => !answers[q.id]);
     if (unanswered.length > 0) {
@@ -61,7 +91,6 @@ export default function TakeQuizPage() {
         }));
 
       const result = await api.submitQuizAttempt(attemptId, { answers: answerList });
-      // Store result in sessionStorage for the results page
       sessionStorage.setItem(`quiz_result_${quizId}`, JSON.stringify(result));
       router.push(`/quizzes/${quizId}/results`);
     } catch (err) {
@@ -80,7 +109,7 @@ export default function TakeQuizPage() {
     );
   }
 
-  if (error) {
+  if (error && !started) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -96,8 +125,48 @@ export default function TakeQuizPage() {
     );
   }
 
+  // Terminated screen
+  if (terminated) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80">
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-8">
+          <div className="text-center">
+            <div className="text-5xl mb-4 text-red-500">X</div>
+            <h2 className="text-2xl font-bold text-red-800 mb-2">Session Terminated</h2>
+            <p className="text-gray-600 mb-6">
+              Your quiz was automatically submitted because you left this page too many times.
+              Your answers have been saved as-is.
+            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => router.push(`/quizzes/${quizId}/results`)}
+                className="bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-600"
+              >
+                View Results
+              </button>
+              <button
+                onClick={() => router.push('/quizzes')}
+                className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg font-semibold hover:bg-gray-300"
+              >
+                Back to Quizzes
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Violation overlays */}
+      <ViolationToast show={showToast} onDismiss={() => setShowToast(false)} />
+      <ViolationModal
+        show={showModal}
+        violationNumber={modalViolationNumber}
+        onAcknowledge={handleModalAcknowledge}
+      />
+
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
@@ -106,21 +175,36 @@ export default function TakeQuizPage() {
               {answeredCount} of {questions.length} answered
             </p>
           </div>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className={`px-6 py-2 rounded-lg font-medium ${
-              submitting
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-green-500 text-white hover:bg-green-600'
-            }`}
-          >
-            {submitting ? 'Submitting...' : 'Submit Quiz'}
-          </button>
+          <div className="flex items-center gap-4">
+            {violationCount > 0 && (
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                violationCount >= 3 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {violationCount} violation{violationCount !== 1 ? 's' : ''}
+              </span>
+            )}
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className={`px-6 py-2 rounded-lg font-medium ${
+                submitting
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-green-500 text-white hover:bg-green-600'
+              }`}
+            >
+              {submitting ? 'Submitting...' : 'Submit Quiz'}
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+            {error}
+          </div>
+        )}
+
         {questions.map((question, index) => (
           <div key={question.id} className="bg-white rounded-lg shadow p-6">
             <div className="flex items-start gap-3 mb-4">
