@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, health, conversations, grades, dashboard, assignments, personas, rubrics, scenarios
+from app.routers import auth, health, conversations, grades, dashboard, assignments, personas, rubrics, scenarios, quizzes
 
 settings = get_settings()
 
@@ -36,6 +36,7 @@ app.include_router(assignments.router, prefix="/api/v1/assignments", tags=["Assi
 app.include_router(personas.router, prefix="/api/v1/personas", tags=["Personas"])
 app.include_router(rubrics.router, prefix="/api/v1/rubrics", tags=["Rubrics"])
 app.include_router(scenarios.router, prefix="/api/v1/scenarios", tags=["Scenarios"])
+app.include_router(quizzes.router, prefix="/api/v1/quizzes", tags=["Quizzes"])
 
 
 @app.on_event("startup")

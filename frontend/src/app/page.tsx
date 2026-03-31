@@ -32,6 +32,7 @@ export default function Home() {
           <nav className="flex items-center gap-4">
             <a href="/dashboard" className="text-gray-600 hover:text-gray-800">Dashboard</a>
             <a href="/assignments" className="text-gray-600 hover:text-gray-800">Assignments</a>
+            <a href="/quizzes" className="text-gray-600 hover:text-gray-800">Quizzes</a>
             <a href="/scenarios" className="text-gray-600 hover:text-gray-800">Practice</a>
             {user?.role === 'instructor' || user?.role === 'admin' ? (
               <a href="/instructor" className="text-indigo-600 hover:text-indigo-800">Instructor</a>

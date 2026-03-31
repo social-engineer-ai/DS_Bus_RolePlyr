@@ -9,6 +9,7 @@ from app.models.assignment import Assignment
 from app.models.conversation import Conversation, Message
 from app.models.grade import Grade
 from app.models.analytics import DailyAnalytics
+from app.models.quiz import Quiz, QuizQuestion, QuizAttempt, QuizAnswer
 
 __all__ = [
     "User",
@@ -22,4 +23,8 @@ __all__ = [
     "Message",
     "Grade",
     "DailyAnalytics",
+    "Quiz",
+    "QuizQuestion",
+    "QuizAttempt",
+    "QuizAnswer",
 ]

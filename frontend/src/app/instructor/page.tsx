@@ -90,6 +90,7 @@ export default function InstructorDashboardPage() {
             <a href="/instructor/rubrics" className="text-indigo-200 hover:text-white">Rubrics</a>
             <a href="/instructor/scenarios" className="text-indigo-200 hover:text-white">Scenarios</a>
             <a href="/instructor/assignments" className="text-indigo-200 hover:text-white">Assignments</a>
+            <a href="/instructor/quizzes" className="text-indigo-200 hover:text-white">Quizzes</a>
             <a href="/" className="text-indigo-200 hover:text-white">Home</a>
           </nav>
         </div>

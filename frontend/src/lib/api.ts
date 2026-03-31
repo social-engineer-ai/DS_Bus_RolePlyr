@@ -358,6 +358,129 @@ export interface ScenarioCreate {
   max_turns?: number;
 }
 
+// Quiz types
+export interface QuizListItem {
+  id: string;
+  title: string;
+  due_date: string | null;
+  max_attempts: number;
+  is_active: boolean;
+  question_count: number;
+  total_points: number;
+  total_attempts: number;
+}
+
+export interface StudentQuiz {
+  id: string;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  time_limit_minutes: number | null;
+  max_attempts: number;
+  attempts_used: number;
+  best_score: number | null;
+  max_score: number;
+  can_attempt: boolean;
+  question_count: number;
+}
+
+export interface StudentQuestionView {
+  id: string;
+  question_type: string;
+  question_text: string;
+  options: string[] | null;
+  points: number;
+  order_index: number;
+}
+
+export interface QuestionCreate {
+  question_type: string;
+  question_text: string;
+  options?: string[];
+  correct_answer: string;
+  acceptable_answers?: string[];
+  points?: number;
+  order_index?: number;
+}
+
+export interface QuizCreate {
+  title: string;
+  description?: string;
+  course_id: string;
+  time_limit_minutes?: number;
+  max_attempts?: number;
+  due_date?: string;
+  is_active?: boolean;
+  show_answers_after_submit?: boolean;
+  questions: QuestionCreate[];
+}
+
+export interface QuestionResponse {
+  id: string;
+  question_type: string;
+  question_text: string;
+  options: string[] | null;
+  correct_answer: string;
+  acceptable_answers: string[] | null;
+  points: number;
+  order_index: number;
+}
+
+export interface QuizDetailResponse {
+  id: string;
+  title: string;
+  description: string | null;
+  course_id: string;
+  time_limit_minutes: number | null;
+  max_attempts: number;
+  due_date: string | null;
+  is_active: boolean;
+  show_answers_after_submit: boolean;
+  question_count: number;
+  total_points: number;
+  created_at: string;
+  questions: QuestionResponse[];
+}
+
+export interface AnswerSubmit {
+  question_id: string;
+  student_answer: string;
+}
+
+export interface AnswerResult {
+  question_id: string;
+  question_text: string;
+  question_type: string;
+  student_answer: string | null;
+  correct_answer: string | null;
+  is_correct: boolean | null;
+  points_awarded: number;
+  points_possible: number;
+  needs_review: boolean;
+}
+
+export interface AttemptResponse {
+  id: string;
+  quiz_id: string;
+  score: number;
+  max_score: number;
+  started_at: string;
+  submitted_at: string;
+  answers: AnswerResult[];
+}
+
+export interface AttemptListItem {
+  id: string;
+  student_id: string;
+  student_name: string;
+  score: number | null;
+  max_score: number | null;
+  started_at: string;
+  submitted_at: string | null;
+  is_submitted: boolean;
+  needs_review: boolean;
+}
+
 // Auth types
 export interface AuthUser {
   id: string;
@@ -732,6 +855,73 @@ class ApiClient {
 
   async deleteScenario(scenarioId: string): Promise<void> {
     await this.fetch(`/api/v1/scenarios/${scenarioId}`, { method: 'DELETE' });
+  }
+
+  // Quizzes (instructor)
+  async listQuizzesAdmin(courseId?: string, activeOnly: boolean = false): Promise<QuizListItem[]> {
+    let url = '/api/v1/quizzes';
+    const params: string[] = [];
+    if (courseId) params.push(`course_id=${courseId}`);
+    if (activeOnly) params.push('active_only=true');
+    if (params.length > 0) url += '?' + params.join('&');
+    return this.fetch<QuizListItem[]>(url);
+  }
+
+  async getQuizAdmin(quizId: string): Promise<QuizDetailResponse> {
+    return this.fetch<QuizDetailResponse>(`/api/v1/quizzes/${quizId}`);
+  }
+
+  async createQuiz(data: QuizCreate): Promise<QuizDetailResponse> {
+    return this.fetch<QuizDetailResponse>('/api/v1/quizzes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateQuiz(quizId: string, data: Partial<QuizCreate>): Promise<QuizDetailResponse> {
+    return this.fetch<QuizDetailResponse>(`/api/v1/quizzes/${quizId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteQuiz(quizId: string): Promise<void> {
+    await this.fetch(`/api/v1/quizzes/${quizId}`, { method: 'DELETE' });
+  }
+
+  async getQuizResults(quizId: string): Promise<AttemptListItem[]> {
+    return this.fetch<AttemptListItem[]>(`/api/v1/quizzes/${quizId}/results`);
+  }
+
+  async gradeAnswer(answerId: string, data: { is_correct: boolean; points_awarded: number }): Promise<void> {
+    await this.fetch(`/api/v1/quizzes/answers/${answerId}/grade`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Quizzes (student)
+  async getStudentQuizzes(): Promise<StudentQuiz[]> {
+    return this.fetch<StudentQuiz[]>('/api/v1/quizzes/student');
+  }
+
+  async getMyAttempts(quizId: string): Promise<AttemptResponse[]> {
+    return this.fetch<AttemptResponse[]>(`/api/v1/quizzes/${quizId}/my-attempts`);
+  }
+
+  async takeQuiz(quizId: string): Promise<StudentQuestionView[]> {
+    return this.fetch<StudentQuestionView[]>(`/api/v1/quizzes/${quizId}/take`);
+  }
+
+  async startQuizAttempt(quizId: string): Promise<{ attempt_id: string; started_at: string }> {
+    return this.fetch(`/api/v1/quizzes/${quizId}/start`, { method: 'POST' });
+  }
+
+  async submitQuizAttempt(attemptId: string, data: { answers: AnswerSubmit[] }): Promise<AttemptResponse> {
+    return this.fetch<AttemptResponse>(`/api/v1/quizzes/attempts/${attemptId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 }
 
