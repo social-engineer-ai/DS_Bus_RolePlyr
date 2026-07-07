@@ -1,7 +1,7 @@
 """Pydantic schemas for quizzes."""
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -12,13 +12,18 @@ from pydantic import BaseModel, Field
 class QuestionCreate(BaseModel):
     """Schema for creating a question within a quiz."""
 
-    question_type: str = Field(..., pattern="^(mcq|true_false|short_answer)$")
+    question_type: str = Field(..., pattern="^(mcq|true_false|short_answer|self_authored)$")
     question_text: str = Field(..., min_length=1)
     options: Optional[List[str]] = None
-    correct_answer: str = Field(..., min_length=1)
+    correct_answer: str = Field(default="instructor_review", min_length=1)
     acceptable_answers: Optional[List[str]] = None
     points: int = Field(default=1, ge=1)
     order_index: int = Field(default=0, ge=0)
+
+    # Rubric-based grading (used by the LLM grader)
+    rubric: Optional[List[Dict[str, Any]]] = None
+    model_answer: Optional[str] = None
+    common_wrong_answers: Optional[str] = None
 
 
 class QuestionResponse(QuestionCreate):
@@ -53,6 +58,11 @@ class QuizBase(BaseModel):
     due_date: Optional[datetime] = None
     is_active: bool = True
     show_answers_after_submit: bool = True
+    require_all_questions: bool = False
+    use_llm_grader: bool = False
+    llm_grader_model: Optional[str] = None
+    grading_instructions: Optional[str] = None
+    hw_reference: Optional[str] = None
 
 
 class QuizCreate(QuizBase):
@@ -140,6 +150,7 @@ class AttemptSubmit(BaseModel):
 class AnswerResult(BaseModel):
     """Result for a single answer."""
 
+    id: Optional[UUID] = None  # Answer record UUID (exposed for instructor override)
     question_id: UUID
     question_text: str
     question_type: str
@@ -149,6 +160,8 @@ class AnswerResult(BaseModel):
     points_awarded: float
     points_possible: int
     needs_review: bool
+    grader_reasoning: Optional[str] = None
+    graded_by: str = "none"
 
 
 class AttemptResponse(BaseModel):

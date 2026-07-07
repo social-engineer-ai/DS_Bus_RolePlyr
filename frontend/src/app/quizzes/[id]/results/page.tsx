@@ -100,29 +100,62 @@ export default function QuizResultsPage() {
                   <p className="text-gray-800 font-medium">{answer.question_text}</p>
                   <p className="text-xs text-gray-400 mt-1">
                     {answer.question_type === 'mcq' ? 'Multiple Choice' :
-                     answer.question_type === 'true_false' ? 'True/False' : 'Short Answer'}
+                     answer.question_type === 'true_false' ? 'True/False' :
+                     answer.question_type === 'self_authored' ? 'Self-Authored Q&A' : 'Short Answer'}
                     {' '}&middot; {answer.points_awarded}/{answer.points_possible} pts
                   </p>
 
                   <div className="mt-3 space-y-2">
-                    <div>
-                      <span className="text-xs font-medium text-gray-500 uppercase">Your Answer:</span>
-                      <p className={`text-sm mt-0.5 ${
-                        answer.is_correct ? 'text-green-700' : answer.needs_review ? 'text-gray-700' : 'text-red-700'
-                      }`}>
-                        {answer.student_answer || '(no answer)'}
-                      </p>
-                    </div>
-                    {answer.correct_answer && (
-                      <div>
-                        <span className="text-xs font-medium text-gray-500 uppercase">Reference Answer:</span>
-                        <p className="text-sm mt-0.5 text-green-700">{answer.correct_answer}</p>
-                      </div>
-                    )}
-                    {answer.needs_review && (
-                      <p className="text-sm text-yellow-600 font-medium mt-2">
-                        Pending instructor review
-                      </p>
+                    {answer.question_type === 'self_authored' ? (
+                      <>
+                        {(() => {
+                          let parsed = { question: '', answer: '' };
+                          try { parsed = JSON.parse(answer.student_answer || '{}'); } catch {}
+                          return (
+                            <>
+                              <div>
+                                <span className="text-xs font-medium text-gray-500 uppercase">Your Question:</span>
+                                <p className="text-sm mt-0.5 text-gray-800 bg-gray-50 rounded p-2">
+                                  {parsed.question || '(no question written)'}
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-xs font-medium text-gray-500 uppercase">Your Answer:</span>
+                                <p className="text-sm mt-0.5 text-gray-800 bg-gray-50 rounded p-2">
+                                  {parsed.answer || '(no answer written)'}
+                                </p>
+                              </div>
+                            </>
+                          );
+                        })()}
+                        {answer.needs_review && (
+                          <p className="text-sm text-yellow-600 font-medium mt-2">
+                            Pending instructor review
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="text-xs font-medium text-gray-500 uppercase">Your Answer:</span>
+                          <p className={`text-sm mt-0.5 ${
+                            answer.is_correct ? 'text-green-700' : answer.needs_review ? 'text-gray-700' : 'text-red-700'
+                          }`}>
+                            {answer.student_answer || '(no answer)'}
+                          </p>
+                        </div>
+                        {answer.correct_answer && (
+                          <div>
+                            <span className="text-xs font-medium text-gray-500 uppercase">Reference Answer:</span>
+                            <p className="text-sm mt-0.5 text-green-700">{answer.correct_answer}</p>
+                          </div>
+                        )}
+                        {answer.needs_review && (
+                          <p className="text-sm text-yellow-600 font-medium mt-2">
+                            Pending instructor review
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

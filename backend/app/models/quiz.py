@@ -24,6 +24,17 @@ class Quiz(Base, UUIDMixin, TimestampMixin):
     is_active = Column(Boolean, default=True, nullable=False)
     show_answers_after_submit = Column(Boolean, default=True, nullable=False)
 
+    # Scoring model: when true, max_score = sum(question.points) regardless of
+    # how many questions the student answers. When false, falls back to the
+    # legacy "answer any 5" behavior (max_score = answered_count * points_per_q).
+    require_all_questions = Column(Boolean, default=False, nullable=False)
+
+    # LLM grading
+    use_llm_grader = Column(Boolean, default=False, nullable=False)
+    llm_grader_model = Column(String(64), nullable=True)  # e.g. "claude-opus-4-7"
+    grading_instructions = Column(Text, nullable=True)    # quiz-wide grading principles for LLM
+    hw_reference = Column(Text, nullable=True)            # optional context about the HW the quiz multiplies
+
     # Relationships
     course = relationship("Course", backref="quizzes")
     questions = relationship("QuizQuestion", back_populates="quiz", order_by="QuizQuestion.order_index")
@@ -46,6 +57,12 @@ class QuizQuestion(Base, UUIDMixin, TimestampMixin):
     acceptable_answers = Column(JSONB, nullable=True)  # For short answer: ["keyword1", "keyword2"]
     points = Column(Integer, default=1, nullable=False)
     order_index = Column(Integer, default=0, nullable=False)
+
+    # Rubric-based grading (for LLM-graded short answers)
+    # rubric is a list of tiers, e.g. [{"label": "full", "points": 4, "criteria": "..."}, ...]
+    rubric = Column(JSONB, nullable=True)
+    model_answer = Column(Text, nullable=True)           # narrative model answer for LLM context
+    common_wrong_answers = Column(Text, nullable=True)   # optional hints for the grader
 
     # Relationships
     quiz = relationship("Quiz", back_populates="questions")
@@ -88,6 +105,10 @@ class QuizAnswer(Base, UUIDMixin, TimestampMixin):
     is_correct = Column(Boolean, nullable=True)
     points_awarded = Column(Float, default=0, nullable=False)
     needs_review = Column(Boolean, default=False, nullable=False)
+
+    # LLM / instructor grading provenance
+    grader_reasoning = Column(Text, nullable=True)       # explanation of the score (LLM or instructor)
+    graded_by = Column(String(16), default="none", nullable=False)  # "none", "llm", "instructor"
 
     # Relationships
     attempt = relationship("QuizAttempt", back_populates="answers")

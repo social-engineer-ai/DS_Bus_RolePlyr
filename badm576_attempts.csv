@@ -1,0 +1,97 @@
+item,email,name,score,max_score,submitted_at
+classification,ashleyn4@illinois.edu,Ash Castelino,2,20,2026-04-22 20:50:17.500885
+classification,yiw21@illinois.edu,Yi Wang,17,20,2026-04-22 20:58:23.643888
+classification,student1@stakeholdersim.edu,Alex Chen,0,20,2026-04-22 20:26:22.957518
+classification,qiaoqil2@illinois.edu,qiaoqil2,0,20,2026-04-22 20:37:26.990975
+classification,smagha2@illinois.edu,Shehzadi Mahum Agha,0,20,2026-04-22 20:40:55.685599
+classification,smagha2@illinois.edu,Shehzadi Mahum Agha,0,20,2026-04-22 20:42:57.758436
+classification,chiranz2@illinois.edu,chiranz2,0,20,2026-04-22 20:45:12.748112
+classification,anm20@illinois.edu,Ajay Muttukumaran,11.5,20,2026-04-22 20:50:16.743776
+classification,csato2@illinois,Calvin Yuto Sato,11.5,20,2026-04-22 20:47:41.441411
+classification,mhrafiq2@illinois.edu,Meryem Hassan Rafiq,11,20,2026-04-22 20:50:21.62982
+classification,siyic5@illinois.edu,siyi chen,15,20,2026-04-22 20:50:30.355375
+classification,sn48@illinois.edu,Shreshta Nagesh,8,20,2026-04-22 20:49:43.296567
+classification,jpi5@illinois.edu,PI JUANJUAN,14,20,2026-04-22 20:49:57.723349
+classification,tengz3@illinois.edu,teng zhang,15,20,2026-04-22 20:55:40.171724
+classification,shunluo2@illinois.edu,Shun Luo,11.5,20,2026-04-22 20:58:41.432689
+classification,rreye3@illinois.edu,Red Reyes,14.5,20,2026-04-22 20:49:56.49784
+classification,ashleyn4@illinois.edu,Ash Castelino,2.5,20,2026-04-22 20:56:25.880421
+classification,smagha2@illinois.edu,Shehzadi Mahum Agha,16.5,20,2026-04-22 20:51:37.852689
+classification,yanzhuy2@illinois.edu,Yanzhu Yang,13,20,2026-04-22 21:10:49.825747
+classification,qiaoqil2@illinois.edu,qiaoqil2,13.5,20,2026-04-22 20:57:00.549209
+classification,qm9@illinois.edu,Qingyang Meng,11,20,2026-04-22 20:52:00.583856
+classification,akotam2@illinois.edu,Abhinay,17,20,2026-04-22 20:51:59.998123
+classification,xliu177@illinois.edu,xliu177,18,20,2026-04-22 21:00:20.589884
+classification,chiranz2@illinois.edu,chiranz2,9,20,2026-04-22 20:57:27.718875
+classification,dpurwar2@illinois.edu,Deepti,11,20,2026-04-22 20:52:29.232862
+classification,jialinx3@illinois.edu,Jialin Xu,16,20,2026-04-22 20:52:28.204807
+classification,emaads2@illinois.edu,Emaad Siddique,7.5,20,2026-04-22 20:53:13.996302
+classification,yangf5@illinois.edu,Yang Fei,16.5,20,2026-04-22 21:02:45.457662
+classification,tipjira2@illinois.edu,Tipjira Aiemvijan,17.5,20,2026-04-22 20:57:56.777763
+classification,dxu28@illinois.edu,Danyu Xu,15.5,20,2026-04-22 21:12:03.639881
+classification,wujingw2@illinois.edu,WEIWUJING,12.5,20,2026-04-22 20:58:08.207616
+classification,ashleyn4@illinois.edu,Ash Castelino,10.5,20,2026-04-22 21:05:08.556344
+classification,ashishk@illinois.edu,Ashish K Test,0,20,2026-04-22 21:05:46.558311
+classification,amajum2@illinois.edu,Akshath Majumder,14.5,20,2026-04-22 21:06:45.156051
+classification,lingd2@illinois.edu,Ling Ding,5,20,2026-04-22 22:07:50.415651
+classification,ashishk@illinois.edu,Ashish K Test,0,20,2026-04-22 22:19:20.329495
+classification,hind.mhaouer@gmail.com,Hind Mhaouer,8.5,20,2026-04-22 22:28:54.339958
+pca,sn48@illinois.edu,Shreshta Nagesh,10,10,2026-04-29 20:37:04.771199
+pca,emaads2@illinois.edu,Emaad Siddique,10,10,2026-04-29 20:42:41.227738
+pca,chiranz2@illinois.edu,chiranz2,10,10,2026-04-29 20:37:12.076473
+pca,anm20@illinois.edu,Ajay Muttukumaran,10,10,2026-04-29 20:46:01.825082
+pca,as274@illinois.edu,Abhinav Sharma,10,10,2026-04-29 20:41:46.530586
+pca,rreye3@illinois.edu,Red Reyes,10,10,2026-04-29 20:38:04.420038
+pca,rreye3@illinois.edu,Red Reyes,8,10,2026-04-29 20:37:23.184145
+pca,yangf5@illinois.edu,Yang Fei,10,10,2026-04-29 20:45:37.722571
+pca,yiw21@illinois.edu,Yi Wang,7,10,2026-04-29 20:44:17.101782
+pca,shunluo2@illinois.edu,Shun Luo,10,10,2026-04-29 20:44:13.907723
+pca,ashleyn4@illinois.edu,Ash Castelino,9,10,2026-04-29 20:44:04.42413
+pca,ashleyn4@illinois.edu,Ash Castelino,4,10,2026-04-29 20:42:22.227398
+pca,siyic5@illinois.edu,siyi chen,10,10,2026-04-29 20:40:36.259897
+pca,tipjira2@illinois.edu,Tipjira Aiemvijan,10,10,2026-04-29 20:42:31.679443
+pca,tipjira2@illinois.edu,Tipjira Aiemvijan,5,10,2026-04-29 20:41:46.185
+pca,yanzhuy2@illinois.edu,Yanzhu Yang,10,10,2026-04-29 20:44:08.178545
+pca,tengz3@illinois.edu,teng zhang,10,10,2026-04-29 20:43:25.818837
+pca,jpi5@illinois.edu,PI JUANJUAN,10,10,2026-04-29 20:41:13.647193
+pca,qiaoqil2@illinois.edu,qiaoqil2,8,10,2026-04-29 20:47:05.096517
+pca,xliu177@illinois.edu,xliu177,10,10,2026-04-29 20:44:57.658382
+pca,jialinx3@illinois.edu,Jialin Xu,10,10,2026-04-29 20:43:02.412674
+pca,dpurwar2@illinois.edu,Deepti,10,10,2026-04-29 20:42:07.23367
+pca,dxu28@illinois.edu,Danyu Xu,8,10,2026-04-29 20:44:13.470645
+pca,qm9@illinois.edu,Qingyang Meng,9,10,2026-04-29 20:41:46.49642
+pca,wujingw2@illinois.edu,WEIWUJING,10,10,2026-04-29 20:43:53.417363
+pca,mhrafiq2@illinois.edu,Meryem Hassan Rafiq,8,10,2026-04-29 20:43:16.949199
+pca,csato2@illinois,Calvin Yuto Sato,10,10,2026-04-29 20:38:11.841513
+pca,hind.mhaouer@gmail.com,Hind Mhaouer,9,10,2026-04-29 20:44:45.410429
+ml_exercise,ashishk@illinois.edu,Ashish K Test,15,100,2026-03-11 19:59:49.192176
+ml_exercise,sjeremy3@illinois.edu,Jeremy Samuel,5,100,2026-03-11 20:20:29.854185
+ml_exercise,sn48@illinois.edu,Shreshta Nagesh,38,100,2026-03-11 20:50:29.909643
+ml_exercise,amajum2@illinois.edu,Akshath Majumder,50,100,2026-03-11 20:55:18.228956
+ml_exercise,akotam2@illinois.edu,Abhinay,20,100,2026-03-11 21:00:24.301155
+ml_exercise,emaads2@illinois.edu,Emaad Siddique,15,100,2026-03-11 21:05:00.599359
+ml_exercise,chiranz2@illinois.edu,chiranz2,30,100,2026-03-11 21:00:01.325624
+ml_exercise,anm20@illinois.edu,Ajay Muttukumaran,35,100,2026-03-11 20:56:49.302643
+ml_exercise,as274@illinois.edu,Abhinav Sharma,25,100,2026-03-11 20:55:53.244462
+ml_exercise,rreye3@illinois.edu,Red Reyes,45,100,2026-03-11 20:51:36.591893
+ml_exercise,csato2@illinois.edu,Calvin Yuto Sato,45,100,2026-03-11 20:55:39.852661
+ml_exercise,yangf5@illinois.edu,Yang Fei,15,100,2026-03-11 20:59:55.213322
+ml_exercise,zong7@illinois.edu,yi zong,40,100,2026-03-11 20:57:36.607061
+ml_exercise,yiw21@illinois.edu,Yi Wang,10,100,2026-03-11 20:58:33.469574
+ml_exercise,shunluo2@illinois.edu,Shun Luo,50,100,2026-03-11 21:00:40.157308
+ml_exercise,wujingwei635@gmail.com,WEIWUJING,10,100,2026-03-11 21:00:06.569377
+ml_exercise,ashleyn4@illinois.edu,Ash Castelino,44,100,2026-03-11 20:56:21.478171
+ml_exercise,siyic5@illinois.edu,siyi chen,15,100,2026-03-11 21:00:35.351532
+ml_exercise,tipjira2@illinois.edu,Tipjira Aiemvijan,20,100,2026-03-11 21:02:00.389982
+ml_exercise,yanzhuy2@illinois.edu,Yanzhu Yang,27,100,2026-03-11 21:03:44.16549
+ml_exercise,lingd2@illinois.edu,Ling Ding,38,100,2026-03-11 20:59:30.547778
+ml_exercise,tengz3@illinois.edu,teng zhang,35,100,2026-03-11 21:34:38.249615
+ml_exercise,jpi5@illinois.edu,PI JUANJUAN,10,100,2026-03-11 20:58:29.79566
+ml_exercise,hindm2@illinois.edu,Hind,18,100,2026-03-11 20:59:29.527387
+ml_exercise,qiaoqil2@illinois.edu,qiaoqil2,30,100,2026-03-11 21:04:08.783495
+ml_exercise,xliu177@illinois.edu,xliu177,25,100,2026-03-11 21:06:18.193838
+ml_exercise,jialinx3@illinois.edu,Jialin Xu,25,100,2026-03-11 21:07:50.043314
+ml_exercise,zhangshengchen8@gmail.com,Shengchen Zhang,45,100,2026-03-11 21:00:27.776629
+ml_exercise,dpurwar2@illinois.edu,Deepti,20,100,2026-03-11 21:02:24.313491
+ml_exercise,qm9@illinois.edu,Qingyang Meng,20,100,2026-03-11 21:05:27.468
+ml_exercise,wujingw2@illinois.edu,WEIWUJING,15,100,2026-03-11 21:12:47.851216

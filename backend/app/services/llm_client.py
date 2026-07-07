@@ -30,28 +30,30 @@ class LLMClient:
         system_prompt: str,
         messages: list[dict],
         max_tokens: int = 500,
-        temperature: float = 0.7,
+        temperature: Optional[float] = 0.7,
         model: Optional[str] = None,
     ) -> str:
         """Generate a response from Claude.
 
-        Args:
-            system_prompt: The system prompt defining Claude's role.
-            messages: List of message dicts with 'role' and 'content'.
-            max_tokens: Maximum tokens in response.
-            temperature: Sampling temperature (0-1).
-            model: Model to use. Defaults to claude-sonnet.
-
-        Returns:
-            The generated text response.
+        Pass temperature=None to omit it entirely — required for models like
+        Opus 4.7 that have deprecated the temperature parameter.
         """
-        response = self.client.messages.create(
-            model=model or self.default_model,
+        model_id = model or self.default_model
+        # Opus 4.7 (and newer reasoning-tuned models) have deprecated `temperature`.
+        # Drop it automatically so callers don't have to think about it.
+        if temperature is not None and model_id.startswith("claude-opus-4-7"):
+            temperature = None
+
+        kwargs = dict(
+            model=model_id,
             max_tokens=max_tokens,
-            temperature=temperature,
             system=system_prompt,
             messages=messages,
         )
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+
+        response = self.client.messages.create(**kwargs)
         return response.content[0].text
 
     async def generate_json_response(
@@ -64,17 +66,7 @@ class LLMClient:
         """Generate a JSON response from Claude.
 
         Used for structured outputs like grading.
-
-        Args:
-            system_prompt: The system prompt defining Claude's role.
-            messages: List of message dicts with 'role' and 'content'.
-            max_tokens: Maximum tokens in response.
-            model: Model to use.
-
-        Returns:
-            The generated JSON string.
         """
-        # Lower temperature for more consistent JSON output
         return await self.generate_response(
             system_prompt=system_prompt,
             messages=messages,

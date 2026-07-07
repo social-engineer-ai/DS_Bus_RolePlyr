@@ -448,6 +448,7 @@ export interface AnswerSubmit {
 }
 
 export interface AnswerResult {
+  id?: string;
   question_id: string;
   question_text: string;
   question_type: string;
@@ -457,6 +458,8 @@ export interface AnswerResult {
   points_awarded: number;
   points_possible: number;
   needs_review: boolean;
+  grader_reasoning?: string | null;
+  graded_by?: 'none' | 'llm' | 'instructor';
 }
 
 export interface AttemptResponse {
@@ -897,6 +900,24 @@ class ApiClient {
     await this.fetch(`/api/v1/quizzes/answers/${answerId}/grade`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  }
+
+  async getAttemptDetail(attemptId: string): Promise<AttemptResponse> {
+    return this.fetch<AttemptResponse>(`/api/v1/quizzes/attempts/${attemptId}`);
+  }
+
+  async gradeAttemptWithLLM(attemptId: string, regrade: boolean = false): Promise<{ graded: number; skipped: number; failed: number; total_score: number }> {
+    const suffix = regrade ? '?regrade=true' : '';
+    return this.fetch(`/api/v1/quizzes/attempts/${attemptId}/grade-with-llm${suffix}`, {
+      method: 'POST',
+    });
+  }
+
+  async gradeAllAttemptsWithLLM(quizId: string, regrade: boolean = false): Promise<{ attempts: number; graded: number; skipped: number; failed: number }> {
+    const suffix = regrade ? '?regrade=true' : '';
+    return this.fetch(`/api/v1/quizzes/${quizId}/grade-all-with-llm${suffix}`, {
+      method: 'POST',
     });
   }
 

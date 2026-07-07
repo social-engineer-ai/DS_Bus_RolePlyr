@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api, StudentQuestionView, AnswerSubmit } from '@/lib/api';
+import { api, StudentQuestionView, AnswerSubmit, StudentQuiz } from '@/lib/api';
 import { useScreenLock } from '@/components/useScreenLock';
 import { ViolationToast } from '@/components/ViolationToast';
 import { ViolationModal } from '@/components/ViolationModal';
@@ -13,6 +13,8 @@ export default function TakeQuizPage() {
   const quizId = params.id as string;
 
   const [questions, setQuestions] = useState<StudentQuestionView[]>([]);
+  const [quizMeta, setQuizMeta] = useState<StudentQuiz | null>(null);
+  const [showInstructions, setShowInstructions] = useState(true);
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -52,12 +54,14 @@ export default function TakeQuizPage() {
   const loadQuiz = async () => {
     try {
       setLoading(true);
-      const [questionsData, attemptData] = await Promise.all([
+      const [questionsData, attemptData, studentQuizzes] = await Promise.all([
         api.takeQuiz(quizId),
         api.startQuizAttempt(quizId),
+        api.getStudentQuizzes(),
       ]);
       setQuestions(questionsData);
       setAttemptId(attemptData.attempt_id);
+      setQuizMeta(studentQuizzes.find(q => q.id === quizId) || null);
       setStarted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load quiz');
@@ -99,7 +103,17 @@ export default function TakeQuizPage() {
     }
   };
 
-  const answeredCount = questions.filter(q => answers[q.id]).length;
+  const answeredCount = questions.filter(q => {
+    const val = answers[q.id];
+    if (!val) return false;
+    if (q.question_type === 'self_authored') {
+      try {
+        const parsed = JSON.parse(val);
+        return (parsed.question && parsed.question.trim()) || (parsed.answer && parsed.answer.trim());
+      } catch { return false; }
+    }
+    return true;
+  }).length;
 
   if (loading) {
     return (
@@ -170,9 +184,10 @@ export default function TakeQuizPage() {
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-gray-800">Quiz</h1>
+            <h1 className="text-lg font-bold text-gray-800">{quizMeta?.title || 'Quiz'}</h1>
             <p className="text-sm text-gray-500">
-              {answeredCount} answered — pick any 5 of {questions.length}
+              {answeredCount} of {questions.length} answered
+              {quizMeta ? ` · ${quizMeta.max_score} pts total` : ''}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -205,6 +220,46 @@ export default function TakeQuizPage() {
           </div>
         )}
 
+        {quizMeta?.description && showInstructions && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <h2 className="text-sm font-semibold text-blue-900 mb-2 uppercase tracking-wide">
+                  Instructions
+                </h2>
+                <p className="text-sm text-blue-900 whitespace-pre-line leading-relaxed">
+                  {quizMeta.description}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-blue-800">
+                  <span><strong>{questions.length}</strong> questions</span>
+                  <span><strong>{quizMeta.max_score}</strong> pts total</span>
+                  {quizMeta.time_limit_minutes && (
+                    <span><strong>{quizMeta.time_limit_minutes}</strong>-min limit</span>
+                  )}
+                  <span>
+                    <strong>{quizMeta.max_attempts}</strong> attempt{quizMeta.max_attempts !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInstructions(false)}
+                className="text-blue-700 hover:text-blue-900 text-sm underline shrink-0"
+              >
+                Hide
+              </button>
+            </div>
+          </div>
+        )}
+
+        {quizMeta?.description && !showInstructions && (
+          <button
+            onClick={() => setShowInstructions(true)}
+            className="text-sm text-blue-700 hover:text-blue-900 underline"
+          >
+            Show instructions
+          </button>
+        )}
+
         {questions.map((question, index) => (
           <div key={question.id} className="bg-white rounded-lg shadow p-6">
             <div className="flex items-start gap-3 mb-4">
@@ -216,7 +271,8 @@ export default function TakeQuizPage() {
                 <p className="text-xs text-gray-400 mt-1">
                   {question.points} point{question.points !== 1 ? 's' : ''} &middot;{' '}
                   {question.question_type === 'mcq' ? 'Multiple Choice' :
-                   question.question_type === 'true_false' ? 'True/False' : 'Short Answer'}
+                   question.question_type === 'true_false' ? 'True/False' :
+                   question.question_type === 'self_authored' ? 'Write Your Own Q&A' : 'Short Answer'}
                 </p>
               </div>
             </div>
@@ -257,6 +313,38 @@ export default function TakeQuizPage() {
                   rows={3}
                   className="w-full border border-gray-200 rounded-lg p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+              </div>
+            )}
+
+            {/* Self-Authored: student writes both question and answer */}
+            {question.question_type === 'self_authored' && (
+              <div className="ml-9 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Your Question</label>
+                  <textarea
+                    value={(() => { try { return JSON.parse(answers[question.id] || '{}').question || ''; } catch { return ''; } })()}
+                    onChange={(e) => {
+                      const current = (() => { try { return JSON.parse(answers[question.id] || '{}'); } catch { return {}; } })();
+                      setAnswer(question.id, JSON.stringify({ ...current, question: e.target.value }));
+                    }}
+                    placeholder="Write a question about this topic..."
+                    rows={3}
+                    className="w-full border border-gray-200 rounded-lg p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Your Answer</label>
+                  <textarea
+                    value={(() => { try { return JSON.parse(answers[question.id] || '{}').answer || ''; } catch { return ''; } })()}
+                    onChange={(e) => {
+                      const current = (() => { try { return JSON.parse(answers[question.id] || '{}'); } catch { return {}; } })();
+                      setAnswer(question.id, JSON.stringify({ ...current, answer: e.target.value }));
+                    }}
+                    placeholder="Write your answer..."
+                    rows={4}
+                    className="w-full border border-gray-200 rounded-lg p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
               </div>
             )}
           </div>

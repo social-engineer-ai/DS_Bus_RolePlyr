@@ -39,18 +39,14 @@ export function useScreenLock({ enabled, onTerminate }: UseScreenLockOptions): U
 
     if (newCount === 1) {
       setShowToast(true);
-    } else if (newCount === 2) {
+    } else {
+      // Every violation from the 2nd onward: pause and show a warning modal.
+      // Auto-submit on the 4th violation is intentionally disabled — instructors
+      // would rather a student keep working than lose their attempt to a stray
+      // tab switch. Violations are still tracked and visible in the header.
       setIsPaused(true);
-      setModalViolationNumber(2);
+      setModalViolationNumber(newCount);
       setShowModal(true);
-    } else if (newCount === 3) {
-      setIsPaused(true);
-      setModalViolationNumber(3);
-      setShowModal(true);
-    } else if (newCount >= 4) {
-      terminatedRef.current = true;
-      setTerminated(true);
-      onTerminate?.();
     }
   }, [enabled, onTerminate]);
 

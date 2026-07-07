@@ -19,15 +19,15 @@ export function ViolationModal({ show, violationNumber, onAcknowledge }: Violati
             {isHardWarning ? '!!' : '!'}
           </div>
           <h2 className={`text-xl font-bold mb-2 ${isHardWarning ? 'text-red-800' : 'text-yellow-800'}`}>
-            {isHardWarning ? 'Final Warning' : 'Focus Required'}
+            {isHardWarning ? 'Please Stay on This Page' : 'Focus Required'}
           </h2>
           <p className={`mb-6 ${isHardWarning ? 'text-red-700' : 'text-gray-600'}`}>
             {isHardWarning
-              ? 'You have left this page multiple times. One more violation will automatically end your session.'
-              : 'You navigated away from this page during an active session. Please remain on this page to continue your conversation.'}
+              ? 'You have navigated away from this page multiple times. Each violation is logged. Please stay on this page until you submit your work.'
+              : 'You navigated away from this page during an active session. Please remain on this page to continue.'}
           </p>
           <p className="text-sm text-gray-500 mb-4">
-            Violation {violationNumber} of 4
+            Violation {violationNumber} (logged)
           </p>
           <button
             onClick={onAcknowledge}

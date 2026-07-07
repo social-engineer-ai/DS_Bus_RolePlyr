@@ -1,5 +1,6 @@
 """Quiz API endpoints."""
 
+import logging
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
@@ -26,6 +27,7 @@ from app.schemas.quiz import (
     AnswerGrade,
 )
 from app.routers.auth import get_current_user
+from app.services.quiz_grader import grade_attempt_with_llm
 
 router = APIRouter()
 
@@ -55,6 +57,11 @@ async def create_quiz(
         due_date=quiz_data.due_date,
         is_active=quiz_data.is_active,
         show_answers_after_submit=quiz_data.show_answers_after_submit,
+        require_all_questions=quiz_data.require_all_questions,
+        use_llm_grader=quiz_data.use_llm_grader,
+        llm_grader_model=quiz_data.llm_grader_model,
+        grading_instructions=quiz_data.grading_instructions,
+        hw_reference=quiz_data.hw_reference,
     )
     db.add(quiz)
     db.flush()
@@ -70,6 +77,9 @@ async def create_quiz(
             acceptable_answers=q_data.acceptable_answers,
             points=q_data.points,
             order_index=q_data.order_index if q_data.order_index else i,
+            rubric=q_data.rubric,
+            model_answer=q_data.model_answer,
+            common_wrong_answers=q_data.common_wrong_answers,
         )
         questions.append(question)
     db.add_all(questions)
@@ -88,6 +98,11 @@ async def create_quiz(
         due_date=quiz.due_date,
         is_active=quiz.is_active,
         show_answers_after_submit=quiz.show_answers_after_submit,
+        require_all_questions=quiz.require_all_questions,
+        use_llm_grader=quiz.use_llm_grader,
+        llm_grader_model=quiz.llm_grader_model,
+        grading_instructions=quiz.grading_instructions,
+        hw_reference=quiz.hw_reference,
         question_count=len(questions),
         total_points=total_points,
         created_at=quiz.created_at,
@@ -101,6 +116,9 @@ async def create_quiz(
                 acceptable_answers=q.acceptable_answers,
                 points=q.points,
                 order_index=q.order_index,
+                rubric=q.rubric,
+                model_answer=q.model_answer,
+                common_wrong_answers=q.common_wrong_answers,
             )
             for q in questions
         ],
@@ -168,9 +186,14 @@ async def get_student_quizzes(
                 if best_score is None or attempt.score > best_score:
                     best_score = attempt.score
 
-        # "Answer any 5" model: max score = 5 * points_per_question
-        points_per_q = questions[0].points if questions else 3
-        total_points = 5 * points_per_q
+        # Scoring model
+        is_self_authored = all(q.question_type == "self_authored" for q in questions)
+        if quiz.require_all_questions or is_self_authored:
+            total_points = sum(q.points for q in questions)
+        else:
+            # Legacy "answer any 5" model: max score = 5 * points_per_question
+            points_per_q = questions[0].points if questions else 3
+            total_points = 5 * points_per_q
 
         can_attempt = attempts_used < quiz.max_attempts
         if quiz.due_date and datetime.utcnow() > quiz.due_date:
@@ -222,6 +245,11 @@ async def get_quiz(
         due_date=quiz.due_date,
         is_active=quiz.is_active,
         show_answers_after_submit=quiz.show_answers_after_submit,
+        require_all_questions=quiz.require_all_questions,
+        use_llm_grader=quiz.use_llm_grader,
+        llm_grader_model=quiz.llm_grader_model,
+        grading_instructions=quiz.grading_instructions,
+        hw_reference=quiz.hw_reference,
         question_count=len(questions),
         total_points=total_points,
         created_at=quiz.created_at,
@@ -235,6 +263,9 @@ async def get_quiz(
                 acceptable_answers=q.acceptable_answers,
                 points=q.points,
                 order_index=q.order_index,
+                rubric=q.rubric,
+                model_answer=q.model_answer,
+                common_wrong_answers=q.common_wrong_answers,
             )
             for q in questions
         ],
@@ -277,6 +308,11 @@ async def update_quiz(
         due_date=quiz.due_date,
         is_active=quiz.is_active,
         show_answers_after_submit=quiz.show_answers_after_submit,
+        require_all_questions=quiz.require_all_questions,
+        use_llm_grader=quiz.use_llm_grader,
+        llm_grader_model=quiz.llm_grader_model,
+        grading_instructions=quiz.grading_instructions,
+        hw_reference=quiz.hw_reference,
         question_count=len(questions),
         total_points=total_points,
         created_at=quiz.created_at,
@@ -290,6 +326,9 @@ async def update_quiz(
                 acceptable_answers=q.acceptable_answers,
                 points=q.points,
                 order_index=q.order_index,
+                rubric=q.rubric,
+                model_answer=q.model_answer,
+                common_wrong_answers=q.common_wrong_answers,
             )
             for q in questions
         ],
@@ -360,7 +399,7 @@ async def grade_answer(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Manually grade a single answer (instructor only)."""
+    """Manually grade a single answer (instructor only). Overrides any LLM grade."""
     _require_instructor(current_user)
 
     answer = db.query(QuizAnswer).filter(QuizAnswer.id == answer_id).first()
@@ -370,6 +409,7 @@ async def grade_answer(
     answer.is_correct = grade_data.is_correct
     answer.points_awarded = grade_data.points_awarded
     answer.needs_review = False
+    answer.graded_by = "instructor"
 
     # Recalculate attempt score
     attempt = db.query(QuizAttempt).filter(QuizAttempt.id == answer.attempt_id).first()
@@ -380,6 +420,112 @@ async def grade_answer(
     db.commit()
 
     return {"message": "Answer graded", "points_awarded": grade_data.points_awarded}
+
+
+@router.post("/attempts/{attempt_id}/grade-with-llm")
+async def grade_attempt_llm(
+    attempt_id: UUID,
+    regrade: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Grade every eligible answer on an attempt using the configured LLM grader.
+
+    Leaves needs_review=true so the instructor confirms each LLM grade.
+    """
+    _require_instructor(current_user)
+    try:
+        summary = await grade_attempt_with_llm(db, attempt_id, regrade=regrade)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return summary
+
+
+@router.post("/{quiz_id}/grade-all-with-llm")
+async def grade_all_attempts_llm(
+    quiz_id: UUID,
+    regrade: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Grade every submitted attempt on a quiz with the LLM grader."""
+    _require_instructor(current_user)
+
+    quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+    attempts = db.query(QuizAttempt).filter(
+        QuizAttempt.quiz_id == quiz_id,
+        QuizAttempt.is_submitted == True,
+    ).all()
+
+    totals = {"attempts": 0, "graded": 0, "skipped": 0, "failed": 0}
+    for attempt in attempts:
+        summary = await grade_attempt_with_llm(db, attempt.id, regrade=regrade)
+        totals["attempts"] += 1
+        totals["graded"] += summary["graded"]
+        totals["skipped"] += summary["skipped"]
+        totals["failed"] += summary["failed"]
+
+    return totals
+
+
+@router.get("/attempts/{attempt_id}", response_model=AttemptResponse)
+async def get_attempt_detail(
+    attempt_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Fetch a single attempt with full per-answer detail (instructor view).
+
+    Includes the LLM grader's reasoning and correct answers so the instructor
+    can confirm or override each score.
+    """
+    _require_instructor(current_user)
+
+    attempt = db.query(QuizAttempt).filter(QuizAttempt.id == attempt_id).first()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+
+    quiz = db.query(Quiz).filter(Quiz.id == attempt.quiz_id).first()
+    questions = db.query(QuizQuestion).filter(QuizQuestion.quiz_id == quiz.id).all()
+    question_map = {q.id: q for q in questions}
+
+    answers = db.query(QuizAnswer).filter(QuizAnswer.attempt_id == attempt.id).all()
+    answer_results = []
+    for answer in answers:
+        question = question_map.get(answer.question_id)
+        if not question:
+            continue
+        answer_results.append(AnswerResult(
+            id=answer.id,
+            question_id=question.id,
+            question_text=question.question_text,
+            question_type=question.question_type,
+            student_answer=answer.student_answer,
+            correct_answer=question.correct_answer,
+            is_correct=answer.is_correct,
+            points_awarded=answer.points_awarded,
+            points_possible=question.points,
+            needs_review=answer.needs_review,
+            grader_reasoning=answer.grader_reasoning,
+            graded_by=answer.graded_by or "none",
+        ))
+
+    # Preserve rubric ordering via question.order_index
+    order = {q.id: q.order_index for q in questions}
+    answer_results.sort(key=lambda a: order.get(a.question_id, 0))
+
+    return AttemptResponse(
+        id=attempt.id,
+        quiz_id=attempt.quiz_id,
+        score=attempt.score or 0,
+        max_score=attempt.max_score or 0,
+        started_at=attempt.started_at,
+        submitted_at=attempt.submitted_at or attempt.started_at,
+        answers=answer_results,
+    )
 
 
 # ---- Student endpoints ----
@@ -418,6 +564,7 @@ async def get_my_attempts(
             if not question:
                 continue
             answer_results.append(AnswerResult(
+                id=answer.id,
                 question_id=question.id,
                 question_text=question.question_text,
                 question_type=question.question_type,
@@ -427,6 +574,8 @@ async def get_my_attempts(
                 points_awarded=answer.points_awarded,
                 points_possible=question.points,
                 needs_review=answer.needs_review,
+                grader_reasoning=answer.grader_reasoning,
+                graded_by=answer.graded_by or "none",
             ))
 
         result.append(AttemptResponse(
@@ -545,10 +694,20 @@ async def submit_quiz_attempt(
     # Build lookup of submitted answers
     submitted = {a.question_id: a.student_answer for a in submission.answers}
 
-    # Only count answered questions (pick any 5 model: max_score = 5 * points_per_q)
+    # Scoring model
+    is_self_authored_quiz = all(q.question_type == "self_authored" for q in questions)
     answered_questions = [q for q in questions if submitted.get(q.id)]
-    max_answered = min(len(answered_questions), 5)
-    max_score = max_answered * (questions[0].points if questions else 3)
+
+    if quiz.require_all_questions:
+        # Every question counts, whether the student answered or not.
+        max_score = sum(q.points for q in questions)
+    elif is_self_authored_quiz:
+        # Self-authored: max score scales with what the student actually wrote.
+        max_score = sum(q.points for q in answered_questions)
+    else:
+        # Legacy "answer any 5" model.
+        max_answered = min(len(answered_questions), 5)
+        max_score = max_answered * (questions[0].points if questions else 3)
 
     for question in questions:
         student_answer = submitted.get(question.id)
@@ -557,31 +716,42 @@ async def submit_quiz_attempt(
         needs_review = False
 
         if student_answer is not None:
-            if question.question_type in ("mcq", "true_false"):
+            if question.question_type == "self_authored":
+                # Self-authored: student writes both question and answer
+                # Always needs instructor review, no auto-grading
+                is_correct = None
+                points_awarded = 0
+                needs_review = True
+
+            elif question.question_type in ("mcq", "true_false"):
                 is_correct = student_answer.strip().lower() == question.correct_answer.strip().lower()
                 points_awarded = question.points if is_correct else 0
 
             elif question.question_type == "short_answer":
-                answer_lower = student_answer.strip().lower()
-                # Check against acceptable answers list
-                acceptable = question.acceptable_answers or []
-                if acceptable:
-                    is_correct = any(
-                        kw.strip().lower() in answer_lower
-                        for kw in acceptable
-                    )
-                    # Also check exact match against correct_answer
-                    if not is_correct:
-                        is_correct = answer_lower == question.correct_answer.strip().lower()
-                    points_awarded = question.points if is_correct else 0
-                    if not is_correct:
-                        needs_review = True
+                if quiz.use_llm_grader:
+                    # Defer all scoring to the LLM grader. Instructor triggers it
+                    # after submission and then reviews the LLM's score.
+                    is_correct = None
+                    points_awarded = 0
+                    needs_review = True
                 else:
-                    # No acceptable answers defined, check exact match
-                    is_correct = answer_lower == question.correct_answer.strip().lower()
-                    points_awarded = question.points if is_correct else 0
-                    if not is_correct:
-                        needs_review = True
+                    answer_lower = student_answer.strip().lower()
+                    acceptable = question.acceptable_answers or []
+                    if acceptable:
+                        is_correct = any(
+                            kw.strip().lower() in answer_lower
+                            for kw in acceptable
+                        )
+                        if not is_correct:
+                            is_correct = answer_lower == question.correct_answer.strip().lower()
+                        points_awarded = question.points if is_correct else 0
+                        if not is_correct:
+                            needs_review = True
+                    else:
+                        is_correct = answer_lower == question.correct_answer.strip().lower()
+                        points_awarded = question.points if is_correct else 0
+                        if not is_correct:
+                            needs_review = True
 
         total_score += points_awarded
 
@@ -592,6 +762,7 @@ async def submit_quiz_attempt(
             is_correct=is_correct,
             points_awarded=points_awarded,
             needs_review=needs_review,
+            graded_by="none",
         )
         answer_records.append(answer_record)
 
@@ -605,12 +776,31 @@ async def submit_quiz_attempt(
 
     db.commit()
 
+    # Auto-grade with LLM if the quiz is configured for it, so the student sees
+    # their real score immediately. needs_review stays true so the instructor
+    # still confirms each LLM grade.
+    if quiz.use_llm_grader:
+        try:
+            await grade_attempt_with_llm(db, attempt.id)
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Auto LLM grading failed on submit for attempt %s; instructor can re-trigger.",
+                attempt.id,
+            )
+        # Refresh so we return the updated scores and reasoning
+        db.refresh(attempt)
+        answer_records = db.query(QuizAnswer).filter(
+            QuizAnswer.attempt_id == attempt.id
+        ).all()
+        total_score = attempt.score or total_score
+
     # Build response
     show_answers = quiz.show_answers_after_submit
     answer_results = []
     for answer in answer_records:
         question = question_map[answer.question_id]
         answer_results.append(AnswerResult(
+            id=answer.id,
             question_id=question.id,
             question_text=question.question_text,
             question_type=question.question_type,
@@ -620,6 +810,8 @@ async def submit_quiz_attempt(
             points_awarded=answer.points_awarded,
             points_possible=question.points,
             needs_review=answer.needs_review,
+            grader_reasoning=answer.grader_reasoning,
+            graded_by=answer.graded_by or "none",
         ))
 
     return AttemptResponse(

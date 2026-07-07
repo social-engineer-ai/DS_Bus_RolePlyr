@@ -87,6 +87,9 @@ export default function InstructorQuizzesPage() {
         } else if (value === 'mcq') {
           updated[index].options = ['', '', '', ''];
           updated[index].correct_answer = '';
+        } else if (value === 'self_authored') {
+          updated[index].options = [];
+          updated[index].correct_answer = 'instructor_review';
         } else {
           updated[index].options = [];
           updated[index].correct_answer = '';
@@ -250,7 +253,7 @@ export default function InstructorQuizzesPage() {
                     </td>
                     <td className="px-6 py-4 text-sm space-x-2">
                       <button
-                        onClick={() => router.push(`/instructor/quizzes?results=${quiz.id}`)}
+                        onClick={() => router.push(`/instructor/quizzes/${quiz.id}/results`)}
                         className="text-indigo-600 hover:text-indigo-800"
                       >
                         Results
@@ -378,6 +381,7 @@ export default function InstructorQuizzesPage() {
                             <option value="mcq">Multiple Choice</option>
                             <option value="true_false">True/False</option>
                             <option value="short_answer">Short Answer</option>
+                            <option value="self_authored">Self-Authored Q&A</option>
                           </select>
                           <input
                             type="number"
@@ -472,6 +476,16 @@ export default function InstructorQuizzesPage() {
                           <p className="text-xs text-gray-400">Keywords for auto-grading. Answers without a keyword match get flagged for review.</p>
                         </div>
                       )}
+
+                      {/* Self-Authored Q&A */}
+                      {q.question_type === 'self_authored' && (
+                        <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                          <p className="text-sm text-blue-700">
+                            Students will write their own question and answer for this topic/prompt.
+                            All responses require instructor review.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -487,7 +501,7 @@ export default function InstructorQuizzesPage() {
               </button>
               <button
                 onClick={handleCreate}
-                disabled={creating || !title.trim() || questions.some(q => !q.question_text.trim() || !q.correct_answer.trim())}
+                disabled={creating || !title.trim() || questions.some(q => !q.question_text.trim() || (q.question_type !== 'self_authored' && !q.correct_answer.trim()))}
                 className={`px-4 py-2 rounded-lg font-medium ${
                   creating || !title.trim()
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
